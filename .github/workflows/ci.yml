@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://crafthub:crafthub@localhost:5432/crafthub?schema=public
+
+      - name: Build shared packages
+        run: pnpm --filter @crafthub/shared build && pnpm --filter @crafthub/db build
+
+      - name: Typecheck
+        run: pnpm typecheck
+        env:
+          DATABASE_URL: postgresql://crafthub:crafthub@localhost:5432/crafthub?schema=public
+          JWT_SECRET: ci-test-secret-at-least-16-chars
+          NEXT_PUBLIC_API_URL: http://localhost:4000

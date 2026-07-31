@@ -1,0 +1,28 @@
+{
+  "name": "crafthub",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @crafthub/web --filter @crafthub/api --filter @crafthub/worker run dev",
+    "dev:web": "pnpm --filter @crafthub/web dev",
+    "dev:api": "pnpm --filter @crafthub/api dev",
+    "dev:worker": "pnpm --filter @crafthub/worker dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "db:generate": "pnpm --filter @crafthub/db generate",
+    "db:migrate": "pnpm --filter @crafthub/db migrate:dev",
+    "db:push": "pnpm --filter @crafthub/db push",
+    "db:studio": "pnpm --filter @crafthub/db studio",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}

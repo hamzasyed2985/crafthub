@@ -1,0 +1,16 @@
+node_modules
+dist
+.next
+.turbo
+out
+coverage
+*.log
+.env
+.env.local
+.env.*.local
+!.env.example
+.DS_Store
+*.tsbuildinfo
+apps/api/uploads
+.pnpm-store
+packages/db/.env
