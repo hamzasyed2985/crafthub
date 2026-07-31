@@ -10,7 +10,7 @@ Start here: [docs/01-overview.md](./docs/01-overview.md)
 
 ## Stack
 
-Next.js · Express · PostgreSQL · Redis · BullMQ · Stripe Connect · Docker · GitHub Actions · TypeScript
+Next.js · Tailwind CSS · Express · PostgreSQL · Redis · BullMQ · Stripe Connect · Docker · GitHub Actions · TypeScript
 
 ## Repo layout
 

@@ -336,10 +336,11 @@ Respect `prefers-reduced-motion: reduce` (disable transforms; keep opacity insta
 
 ## 13. Implementation notes
 
-- Tailwind: map tokens via CSS variables in `globals.css`; use `tailwind.config` theme extension  
-- Put primitives in `packages/ui`; app routes compose them  
-- Storybook optional but strong for portfolio — at least document components in `/docs` or a `/ui` styleguide page  
-- Screenshot light + dark for README  
+- **Styling default: Tailwind CSS** (v4). Map semantic tokens via `@theme` in `apps/web` `globals.css`.
+- Use plain CSS (or a small utility class in `globals.css`) only when Tailwind is awkward — e.g. complex gradients, paper grain, reduced-motion globals.
+- Put primitives in `packages/ui` with Tailwind classes; scan that package via `@source` in the web app.
+- Storybook optional but strong for portfolio — at least document components in `/docs` or a `/ui` styleguide page
+- Screenshot light + dark for README
 
 ## 14. Deliverables checklist
 

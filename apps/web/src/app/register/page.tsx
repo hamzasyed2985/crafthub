@@ -30,14 +30,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: '3rem auto', padding: '0 1.5rem' }}>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: '0.25rem' }}>
-        Join CraftHub
-      </h1>
-      <p style={{ color: 'var(--fg-muted)', marginTop: 0, marginBottom: '1.5rem' }}>
+    <div className="mx-auto mt-12 max-w-[420px] px-6">
+      <h1 className="mb-1 font-display text-3xl">Join CraftHub</h1>
+      <p className="mb-6 mt-0 text-muted">
         Create a buyer account. Vendor apply comes in Phase 1.
       </p>
-      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <Input
           label="Name"
           name="name"
@@ -65,12 +63,12 @@ export default function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {error ? <p style={{ color: 'var(--danger)', margin: 0 }}>{error}</p> : null}
+        {error ? <p className="m-0 text-danger">{error}</p> : null}
         <Button type="submit" loading={loading}>
           Create account
         </Button>
       </form>
-      <p style={{ marginTop: '1.25rem', color: 'var(--fg-subtle)' }}>
+      <p className="mt-5 text-subtle">
         Already have an account? <Link href="/login">Log in</Link>
       </p>
     </div>

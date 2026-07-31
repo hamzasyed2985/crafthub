@@ -29,14 +29,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: '3rem auto', padding: '0 1.5rem' }}>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: '0.25rem' }}>
-        Log in
-      </h1>
-      <p style={{ color: 'var(--fg-muted)', marginTop: 0, marginBottom: '1.5rem' }}>
-        Welcome back to CraftHub.
-      </p>
-      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div className="mx-auto mt-12 max-w-[420px] px-6">
+      <h1 className="mb-1 font-display text-3xl">Log in</h1>
+      <p className="mb-6 mt-0 text-muted">Welcome back to CraftHub.</p>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <Input
           label="Email"
           type="email"
@@ -55,12 +51,12 @@ export default function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {error ? <p style={{ color: 'var(--danger)', margin: 0 }}>{error}</p> : null}
+        {error ? <p className="m-0 text-danger">{error}</p> : null}
         <Button type="submit" loading={loading}>
           Log in
         </Button>
       </form>
-      <p style={{ marginTop: '1.25rem', color: 'var(--fg-subtle)' }}>
+      <p className="mt-5 text-subtle">
         New here? <Link href="/register">Create an account</Link>
       </p>
     </div>

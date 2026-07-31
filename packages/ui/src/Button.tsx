@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { cn } from './cn';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md';
@@ -10,40 +11,16 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
 };
 
-const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
-  primary: {
-    background: 'var(--accent)',
-    color: 'var(--fg-on-accent)',
-    border: '1px solid var(--accent)',
-  },
-  secondary: {
-    background: 'var(--bg-elevated)',
-    color: 'var(--fg)',
-    border: '1px solid var(--border-strong)',
-  },
-  ghost: {
-    background: 'transparent',
-    color: 'var(--fg)',
-    border: '1px solid transparent',
-  },
-  danger: {
-    background: 'var(--danger)',
-    color: '#fff',
-    border: '1px solid var(--danger)',
-  },
+const variantClass: Record<ButtonVariant, string> = {
+  primary: 'border-accent bg-accent text-on-accent hover:bg-accent-hover hover:border-accent-hover',
+  secondary: 'border-border-strong bg-elevated text-foreground hover:bg-background-subtle',
+  ghost: 'border-transparent bg-transparent text-foreground hover:bg-background-subtle',
+  danger: 'border-danger bg-danger text-white hover:opacity-90',
 };
 
-const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
-  sm: {
-    padding: '0.375rem 0.75rem',
-    fontSize: '0.875rem',
-    minHeight: 36,
-  },
-  md: {
-    padding: '0.625rem 1rem',
-    fontSize: '1rem',
-    minHeight: 44,
-  },
+const sizeClass: Record<ButtonSize, string> = {
+  sm: 'min-h-9 px-3 py-1.5 text-sm',
+  md: 'min-h-11 px-4 py-2.5 text-base',
 };
 
 export function Button({
@@ -52,7 +29,7 @@ export function Button({
   loading = false,
   disabled,
   children,
-  style,
+  className,
   type = 'button',
   ...props
 }: ButtonProps) {
@@ -63,21 +40,14 @@ export function Button({
       type={type}
       disabled={isDisabled}
       aria-busy={loading || undefined}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
-        borderRadius: 'var(--radius-md)',
-        fontFamily: 'var(--font-body)',
-        fontWeight: 600,
-        cursor: isDisabled ? 'not-allowed' : 'pointer',
-        opacity: isDisabled ? 0.6 : 1,
-        transition: 'background 150ms ease, border-color 150ms ease, opacity 150ms ease',
-        ...variantStyles[variant],
-        ...sizeStyles[size],
-        ...style,
-      }}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-md border font-sans font-semibold transition-[background,border-color,opacity] duration-150',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        'disabled:cursor-not-allowed disabled:opacity-60',
+        variantClass[variant],
+        sizeClass[size],
+        className,
+      )}
       {...props}
     >
       {loading ? 'Working…' : children}

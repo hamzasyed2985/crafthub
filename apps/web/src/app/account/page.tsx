@@ -16,7 +16,7 @@ export default function AccountPage() {
 
   if (error) {
     return (
-      <div style={{ maxWidth: 480, margin: '3rem auto', padding: '0 1.5rem' }}>
+      <div className="mx-auto mt-12 max-w-md px-6">
         <p>{error}</p>
         <Link href="/login">Log in</Link>
       </div>
@@ -25,25 +25,25 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div style={{ maxWidth: 480, margin: '3rem auto', padding: '0 1.5rem' }}>
-        <p style={{ color: 'var(--fg-subtle)' }}>Loading…</p>
+      <div className="mx-auto mt-12 max-w-md px-6">
+        <p className="text-subtle">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '3rem auto', padding: '0 1.5rem' }}>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem' }}>Account</h1>
-      <p style={{ color: 'var(--fg-muted)' }}>
+    <div className="mx-auto mt-12 max-w-md px-6">
+      <h1 className="font-display text-3xl">Account</h1>
+      <p className="text-muted">
         Signed in as <strong>{user.email}</strong>
       </p>
-      <dl style={{ display: 'grid', gridTemplateColumns: '8rem 1fr', gap: '0.5rem 1rem' }}>
-        <dt style={{ color: 'var(--fg-subtle)' }}>Name</dt>
-        <dd style={{ margin: 0 }}>{user.name ?? '—'}</dd>
-        <dt style={{ color: 'var(--fg-subtle)' }}>Role</dt>
-        <dd style={{ margin: 0 }}>{user.role}</dd>
-        <dt style={{ color: 'var(--fg-subtle)' }}>Status</dt>
-        <dd style={{ margin: 0 }}>{user.status}</dd>
+      <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2">
+        <dt className="text-subtle">Name</dt>
+        <dd className="m-0">{user.name ?? '—'}</dd>
+        <dt className="text-subtle">Role</dt>
+        <dd className="m-0">{user.role}</dd>
+        <dt className="text-subtle">Status</dt>
+        <dd className="m-0">{user.status}</dd>
       </dl>
     </div>
   );
