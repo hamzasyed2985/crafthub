@@ -15,6 +15,7 @@ app.use(
   cors({
     origin: env.CORS_ORIGIN,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Session'],
   }),
 );
 app.use(express.json({ limit: '1mb' }));

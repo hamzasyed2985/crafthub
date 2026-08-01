@@ -71,6 +71,37 @@ async function parseError(res: Response): Promise<string> {
 }
 
 const ACCESS_TOKEN_KEY = 'crafthub_access_token';
+const CART_SESSION_KEY = 'crafthub_cart_session';
+
+export type CartDto = {
+  id: string;
+  itemCount: number;
+  currency: string;
+  groups: Array<{
+    vendor: { id: string; displayName: string; slug: string; city: string | null };
+    shop: { id: string; flatShippingCents: number; shipsFromCity: string | null };
+    items: Array<{
+      id: string;
+      quantity: number;
+      lineTotalCents: number;
+      variant: {
+        id: string;
+        priceCents: number;
+        currency: string;
+        stockQty: number;
+        sku: string | null;
+      };
+      product: { id: string; title: string; slug: string; imageUrl: string | null };
+    }>;
+    subtotalCents: number;
+    shippingCents: number;
+    vendorTotalCents: number;
+  }>;
+  itemsSubtotalCents: number;
+  shippingTotalCents: number;
+  totalCents: number;
+  warnings: Array<{ itemId?: string; code: string; message: string }>;
+};
 
 export function persistAccessToken(token: string) {
   if (typeof window !== 'undefined') {
@@ -89,10 +120,28 @@ export function clearAccessToken() {
   }
 }
 
+export function persistCartSession(sessionId: string | null | undefined) {
+  if (typeof window === 'undefined' || !sessionId) return;
+  localStorage.setItem(CART_SESSION_KEY, sessionId);
+}
+
+export function readCartSession(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(CART_SESSION_KEY);
+}
+
+export function clearCartSession() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CART_SESSION_KEY);
+  }
+}
+
 function authHeaders(): HeadersInit {
   const token = readAccessToken();
+  const cartSession = readCartSession();
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (cartSession) headers['X-Cart-Session'] = cartSession;
   return headers;
 }
 
@@ -108,6 +157,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) throw new Error(await parseError(res));
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+function rememberCartSession(body: { data?: { cartSessionId?: string | null } }) {
+  persistCartSession(body.data?.cartSessionId);
 }
 
 export async function register(input: {
@@ -269,4 +322,48 @@ export async function patchAdminVendor(
     method: 'PATCH',
     body: JSON.stringify(input),
   });
+}
+
+export async function fetchCart() {
+  const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
+    '/api/v1/cart',
+  );
+  rememberCartSession(body);
+  return body.data.cart;
+}
+
+export async function addCartItem(variantId: string, qty = 1) {
+  const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
+    '/api/v1/cart/items',
+    { method: 'POST', body: JSON.stringify({ variantId, qty }) },
+  );
+  rememberCartSession(body);
+  return body.data.cart;
+}
+
+export async function updateCartItem(itemId: string, qty: number) {
+  const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
+    `/api/v1/cart/items/${itemId}`,
+    { method: 'PATCH', body: JSON.stringify({ qty }) },
+  );
+  rememberCartSession(body);
+  return body.data.cart;
+}
+
+export async function removeCartItem(itemId: string) {
+  const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
+    `/api/v1/cart/items/${itemId}`,
+    { method: 'DELETE' },
+  );
+  rememberCartSession(body);
+  return body.data.cart;
+}
+
+export async function clearCart() {
+  const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
+    '/api/v1/cart',
+    { method: 'DELETE' },
+  );
+  rememberCartSession(body);
+  return body.data.cart;
 }

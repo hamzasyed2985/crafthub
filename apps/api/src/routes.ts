@@ -5,6 +5,7 @@ import { catalogRouter } from './modules/catalog/routes.js';
 import { vendorRouter } from './modules/vendor/routes.js';
 import { vendorProductsRouter } from './modules/vendor/products.js';
 import { adminRouter } from './modules/admin/routes.js';
+import { cartRouter } from './modules/cart/routes.js';
 
 export const router = Router();
 
@@ -22,6 +23,7 @@ router.get('/ready', async (_req, res) => {
 });
 
 router.use('/api/v1/auth', authRouter);
+router.use('/api/v1/cart', cartRouter);
 router.use('/api/v1', catalogRouter);
 router.use('/api/v1/vendor', vendorRouter);
 router.use('/api/v1/vendor/products', vendorProductsRouter);

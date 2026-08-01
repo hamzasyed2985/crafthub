@@ -141,10 +141,99 @@ async function main() {
     });
   }
 
+  const woodwork = await prisma.category.findUniqueOrThrow({ where: { slug: 'woodwork' } });
+  const woodHash = await hashPassword('Vendor123!');
+  const woodUser = await prisma.user.upsert({
+    where: { email: 'wood@crafthub.local' },
+    update: { role: 'vendor', passwordHash: woodHash },
+    create: {
+      email: 'wood@crafthub.local',
+      passwordHash: woodHash,
+      name: 'Omar Timber',
+      role: 'vendor',
+    },
+  });
+
+  const woodVendor = await prisma.vendorProfile.upsert({
+    where: { userId: woodUser.id },
+    update: {
+      status: 'approved',
+      displayName: 'Grain & Groove',
+      bio: 'Hand-cut boards and spoons from reclaimed hardwood.',
+      city: 'Lahore',
+      craftTags: ['woodwork', 'boards', 'kitchen'],
+    },
+    create: {
+      userId: woodUser.id,
+      displayName: 'Grain & Groove',
+      slug: 'grain-groove',
+      bio: 'Hand-cut boards and spoons from reclaimed hardwood.',
+      city: 'Lahore',
+      craftTags: ['woodwork', 'boards', 'kitchen'],
+      status: 'approved',
+      bannerUrl:
+        'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=1600&q=80',
+      logoUrl:
+        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=200&q=80',
+      shop: {
+        create: {
+          shipsFromCity: 'Lahore',
+          flatShippingCents: 600,
+          shippingPolicy: 'Ships in 5–7 days, carefully wrapped.',
+          returnsPolicy: 'No returns on custom cuts; damaged items within 5 days.',
+        },
+      },
+      stripeAccount: { create: {} },
+    },
+    include: { shop: true },
+  });
+
+  if (!woodVendor.shop) {
+    throw new Error('Wood shop missing after upsert');
+  }
+
+  const existingBoard = await prisma.product.findUnique({
+    where: { shopId_slug: { shopId: woodVendor.shop.id, slug: 'walnut-board' } },
+  });
+
+  if (!existingBoard) {
+    await prisma.product.create({
+      data: {
+        shopId: woodVendor.shop.id,
+        categoryId: woodwork.id,
+        title: 'Walnut Cutting Board',
+        slug: 'walnut-board',
+        description: 'End-grain walnut board, food-safe oil finish. About 30×20cm.',
+        status: 'active',
+        variants: {
+          create: [
+            {
+              sku: 'BOARD-WAL-01',
+              priceCents: 4500,
+              currency: 'USD',
+              stockQty: 8,
+              attributes: { wood: 'walnut' },
+            },
+          ],
+        },
+        media: {
+          create: [
+            {
+              url: 'https://images.unsplash.com/photo-1606914469633-bd39206ea739?w=800&q=80',
+              storageKey: 'seed/walnut-board-1',
+              alt: 'Walnut cutting board',
+              sortOrder: 0,
+            },
+          ],
+        },
+      },
+    });
+  }
+
   console.log('Seed complete.');
   console.log('  Admin:  admin@crafthub.local / Admin123!');
-  console.log('  Vendor: pottery@crafthub.local / Vendor123!');
-  console.log(`  Shop:   /shops/clay-ember`);
+  console.log('  Vendor: pottery@crafthub.local / Vendor123!  → /shops/clay-ember');
+  console.log('  Vendor: wood@crafthub.local / Vendor123!     → /shops/grain-groove');
   console.log(`  Admin id: ${admin.id}`);
 }
 

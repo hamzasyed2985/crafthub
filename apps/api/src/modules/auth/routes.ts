@@ -10,6 +10,7 @@ import {
   verifyPassword,
 } from '../../lib/auth-tokens.js';
 import { clearAuthCookies, setAuthCookies } from '../../lib/cookies.js';
+import { mergeGuestCartIntoUser, readCartSessionId } from '../../lib/cart.js';
 import { requireAuth, type AuthedRequest } from '../../middleware/auth.js';
 
 export const authRouter = Router();
@@ -74,6 +75,9 @@ authRouter.post('/register', async (req, res, next) => {
     const tokens = await issueSession(user);
     setAuthCookies(res, tokens);
 
+    const guestSession = readCartSessionId(req.cookies, req.headers as Record<string, unknown>);
+    await mergeGuestCartIntoUser({ userId: user.id, guestSessionId: guestSession });
+
     res.status(201).json({
       data: {
         user: publicUser(user),
@@ -103,6 +107,9 @@ authRouter.post('/login', async (req, res, next) => {
 
     const tokens = await issueSession(user);
     setAuthCookies(res, tokens);
+
+    const guestSession = readCartSessionId(req.cookies, req.headers as Record<string, unknown>);
+    await mergeGuestCartIntoUser({ userId: user.id, guestSessionId: guestSession });
 
     res.json({
       data: {

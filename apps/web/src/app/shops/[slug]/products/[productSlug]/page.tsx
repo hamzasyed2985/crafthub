@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
 import type { ProductDto } from '@/lib/api';
+import { AddToCartButton } from '@/components/add-to-cart-button';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -9,7 +10,10 @@ async function loadShopProducts(slug: string) {
   const res = await fetch(`${API_URL}/api/v1/shops/${slug}`, { next: { revalidate: 30 } });
   if (!res.ok) return null;
   const body = (await res.json()) as {
-    data: { shop: { displayName: string; slug: string; flatShippingCents: number }; products: ProductDto[] };
+    data: {
+      shop: { displayName: string; slug: string; flatShippingCents: number };
+      products: ProductDto[];
+    };
   };
   return body.data;
 }
@@ -56,7 +60,11 @@ export default async function ProductPage({
     <div className="mx-auto grid max-w-5xl gap-10 px-6 py-12 md:grid-cols-2">
       <div className="aspect-[4/5] overflow-hidden rounded-lg bg-background-subtle">
         {image ? (
-          <img src={image.url} alt={image.alt || product.title} className="h-full w-full object-cover" />
+          <img
+            src={image.url}
+            alt={image.alt || product.title}
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-subtle">No image</div>
         )}
@@ -77,7 +85,9 @@ export default async function ProductPage({
           Flat shipping <Price cents={data.shop.flatShippingCents} />
         </p>
         <p className="mt-6 whitespace-pre-wrap text-muted">{product.description}</p>
-        <p className="mt-8 text-sm text-subtle">Cart arrives in Phase 2 — browsing only for now.</p>
+        {variant ? (
+          <AddToCartButton variantId={variant.id} stockQty={variant.stockQty} />
+        ) : null}
       </div>
     </div>
   );

@@ -43,6 +43,7 @@ model User {
   refreshTokens  RefreshToken[]
   vendorProfile  VendorProfile?
   auditLogs      AuditLog[]
+  cart           Cart?
 
   @@map("users")
 }
@@ -170,7 +171,8 @@ model ProductVariant {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
 
   @@index([productId])
   @@map("product_variants")
@@ -192,6 +194,35 @@ model Media {
   @@index([productId])
   @@index([shopId])
   @@map("media")
+}
+
+model Cart {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @unique @map("user_id") @db.Uuid
+  sessionId String?  @unique @map("session_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  cartId    String   @map("cart_id") @db.Uuid
+  variantId String   @map("variant_id") @db.Uuid
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+  @@map("cart_items")
 }
 
 model AuditLog {

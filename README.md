@@ -46,14 +46,14 @@ pnpm dev:web    # :3000
 Seed accounts:
 
 - Admin: `admin@crafthub.local` / `Admin123!`
-- Vendor (approved shop): `pottery@crafthub.local` / `Vendor123!` → `/shops/clay-ember`
+- Vendor (pottery): `pottery@crafthub.local` / `Vendor123!` → `/shops/clay-ember`
+- Vendor (wood): `wood@crafthub.local` / `Vendor123!` → `/shops/grain-groove`
 
 Verify:
 
 - `GET http://localhost:4000/health` → `{ "status": "ok" }`
-- `GET http://localhost:4000/ready` → `{ "status": "ready" }`
-- Public shop: `/shops/clay-ember`
-- PDP: `/shops/clay-ember/products/ember-mug`
+- Public shops: `/shops/clay-ember`, `/shops/grain-groove`
+- Multi-vendor cart: add Ember Mug + Walnut Board → cart groups by vendor
 
 ## Roadmap
 

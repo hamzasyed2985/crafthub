@@ -5,9 +5,11 @@ import { useTheme } from 'next-themes';
 import { Button } from '@crafthub/ui';
 import { useEffect, useState } from 'react';
 import { fetchMe, type AuthUser } from '@/lib/api';
+import { useCart } from '@/components/cart-provider';
 
 export function SiteHeader() {
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { cart, openDrawer } = useCart();
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -19,6 +21,7 @@ export function SiteHeader() {
   }, []);
 
   const isDark = (resolvedTheme ?? theme) === 'dark';
+  const count = cart?.itemCount ?? 0;
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-elevated/90 px-6 py-3.5 backdrop-blur-sm">
@@ -37,6 +40,9 @@ export function SiteHeader() {
       </div>
 
       <nav className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" aria-label="Open cart" onClick={openDrawer}>
+          Cart{count > 0 ? ` (${count})` : ''}
+        </Button>
         {user?.role === 'vendor' ? (
           <Link href="/vendor" className="text-sm text-muted hover:text-foreground">
             Dashboard
