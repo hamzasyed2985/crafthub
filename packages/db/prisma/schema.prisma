@@ -18,6 +18,18 @@ enum UserStatus {
   banned
 }
 
+enum VendorStatus {
+  pending
+  approved
+  suspended
+}
+
+enum ProductStatus {
+  draft
+  active
+  archived
+}
+
 model User {
   id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
@@ -28,7 +40,9 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  refreshTokens RefreshToken[]
+  refreshTokens  RefreshToken[]
+  vendorProfile  VendorProfile?
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -54,4 +68,144 @@ model PlatformSettings {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+model VendorProfile {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @unique @map("user_id") @db.Uuid
+  displayName String       @map("display_name")
+  slug        String       @unique
+  bio         String?
+  logoUrl     String?      @map("logo_url")
+  bannerUrl   String?      @map("banner_url")
+  city        String?
+  craftTags   String[]     @default([]) @map("craft_tags")
+  status      VendorStatus @default(pending)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop          Shop?
+  stripeAccount StripeAccount?
+
+  @@map("vendor_profiles")
+}
+
+model Shop {
+  id                   String   @id @default(uuid()) @db.Uuid
+  vendorId             String   @unique @map("vendor_id") @db.Uuid
+  shippingPolicy       String?  @map("shipping_policy")
+  returnsPolicy        String?  @map("returns_policy")
+  flatShippingCents    Int      @default(0) @map("flat_shipping_cents")
+  shipsFromCity        String?  @map("ships_from_city")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  vendor  VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  products Product[]
+  media    Media[]
+
+  @@map("shops")
+}
+
+model StripeAccount {
+  id                 String   @id @default(uuid()) @db.Uuid
+  vendorId           String   @unique @map("vendor_id") @db.Uuid
+  stripeAccountId    String?  @unique @map("stripe_account_id")
+  onboardingComplete Boolean  @default(false) @map("onboarding_complete")
+  chargesEnabled     Boolean  @default(false) @map("charges_enabled")
+  payoutsEnabled     Boolean  @default(false) @map("payouts_enabled")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  vendor VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("stripe_accounts")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  parentId  String?  @map("parent_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String        @id @default(uuid()) @db.Uuid
+  shopId      String        @map("shop_id") @db.Uuid
+  categoryId  String?       @map("category_id") @db.Uuid
+  title       String
+  slug        String
+  description String        @default("")
+  status      ProductStatus @default(draft)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  shop     Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants ProductVariant[]
+  media    Media[]
+
+  @@unique([shopId, slug])
+  @@index([status])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  sku        String?
+  priceCents Int      @map("price_cents")
+  currency   String   @default("USD")
+  stockQty   Int      @default(0) @map("stock_qty")
+  attributes Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Media {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String?  @map("product_id") @db.Uuid
+  shopId     String?  @map("shop_id") @db.Uuid
+  storageKey String   @map("storage_key")
+  url        String
+  alt        String   @default("")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shop    Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([shopId])
+  @@map("media")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String
+  entity    String
+  entityId  String   @map("entity_id")
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@map("audit_logs")
 }

@@ -27,7 +27,7 @@ infra/docker/
 docs/
 ```
 
-## Local setup (Phase 0)
+## Local setup (Phase 0+)
 
 Prerequisites: Node 20+, Docker Desktop, [pnpm](https://pnpm.io) 9+.
 
@@ -37,16 +37,23 @@ docker compose -f infra/docker/docker-compose.yml up -d
 pnpm install
 pnpm db:generate
 pnpm db:push
+pnpm db:seed
 pnpm --filter @crafthub/shared build
 pnpm dev:api    # :4000
 pnpm dev:web    # :3000
 ```
 
+Seed accounts:
+
+- Admin: `admin@crafthub.local` / `Admin123!`
+- Vendor (approved shop): `pottery@crafthub.local` / `Vendor123!` → `/shops/clay-ember`
+
 Verify:
 
 - `GET http://localhost:4000/health` → `{ "status": "ok" }`
 - `GET http://localhost:4000/ready` → `{ "status": "ready" }`
-- Register at `/register`, then open `/account`
+- Public shop: `/shops/clay-ember`
+- PDP: `/shops/clay-ember/products/ember-mug`
 
 ## Roadmap
 

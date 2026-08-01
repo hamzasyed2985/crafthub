@@ -133,8 +133,29 @@ authRouter.post('/logout', requireAuth, async (req: AuthedRequest, res, next) =>
 
 authRouter.get('/me', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.sub } });
-    res.json({ data: { user: publicUser(user) } });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user!.sub },
+      include: {
+        vendorProfile: {
+          include: { shop: true, stripeAccount: true },
+        },
+      },
+    });
+
+    res.json({
+      data: {
+        user: publicUser(user),
+        vendor: user.vendorProfile
+          ? {
+              id: user.vendorProfile.id,
+              displayName: user.vendorProfile.displayName,
+              slug: user.vendorProfile.slug,
+              status: user.vendorProfile.status,
+              city: user.vendorProfile.city,
+            }
+          : null,
+      },
+    });
   } catch (err) {
     next(err);
   }
