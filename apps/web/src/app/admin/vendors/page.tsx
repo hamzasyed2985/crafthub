@@ -69,6 +69,7 @@ export default function AdminVendorsPage() {
               <p className="font-semibold">{v.displayName}</p>
               <p className="text-sm text-subtle">
                 {v.user.email} · {v.city} · {v.status}
+                {v.ledgerReviewRequired ? ' · ledger review' : ''}
               </p>
               <Link href={`/shops/${v.slug}`} className="text-sm text-accent">
                 /shops/{v.slug}

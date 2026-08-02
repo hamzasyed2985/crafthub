@@ -104,6 +104,7 @@ async function main() {
 
   const existingMug = await prisma.product.findUnique({
     where: { shopId_slug: { shopId: vendor.shop.id, slug: 'ember-mug' } },
+    include: { variants: true },
   });
 
   if (!existingMug) {
@@ -122,7 +123,7 @@ async function main() {
               sku: 'MUG-EMBER-01',
               priceCents: 2800,
               currency: 'USD',
-              stockQty: 12,
+              stockQty: 50,
               attributes: { size: 'standard' },
             },
           ],
@@ -138,6 +139,11 @@ async function main() {
           ],
         },
       },
+    });
+  } else {
+    await prisma.productVariant.updateMany({
+      where: { productId: existingMug.id },
+      data: { stockQty: 50 },
     });
   }
 
@@ -211,7 +217,7 @@ async function main() {
               sku: 'BOARD-WAL-01',
               priceCents: 4500,
               currency: 'USD',
-              stockQty: 8,
+              stockQty: 50,
               attributes: { wood: 'walnut' },
             },
           ],
@@ -227,6 +233,11 @@ async function main() {
           ],
         },
       },
+    });
+  } else {
+    await prisma.productVariant.updateMany({
+      where: { productId: existingBoard.id },
+      data: { stockQty: 50 },
     });
   }
 

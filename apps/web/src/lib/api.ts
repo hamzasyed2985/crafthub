@@ -19,6 +19,7 @@ export type VendorSummary = {
   logoUrl?: string | null;
   bannerUrl?: string | null;
   craftTags?: string[];
+  ledgerReviewRequired?: boolean;
 };
 
 export type ProductDto = {
@@ -333,6 +334,145 @@ export async function patchAdminVendor(
   });
 }
 
+export async function fetchAdminMetrics() {
+  const body = await api<{
+    data: {
+      gmvCents: number;
+      platformRevenueCents: number;
+      ordersByStatus: Record<string, number>;
+      vendorsByStatus: Record<string, number>;
+      refundedOrders: number;
+      refundRate: number;
+      outstandingVendorDebtCents: number;
+      vendorsNeedingLedgerReview: number;
+    };
+  }>('/api/v1/admin/metrics');
+  return body.data;
+}
+
+export async function fetchAdminSettings() {
+  const body = await api<{
+    data: {
+      settings: {
+        commissionBps: number;
+        currency: string;
+        debtReviewThresholdCents: number;
+        updatedAt: string;
+      };
+    };
+  }>('/api/v1/admin/settings');
+  return body.data.settings;
+}
+
+export async function patchAdminSettings(input: {
+  commissionBps?: number;
+  debtReviewThresholdCents?: number;
+  currency?: string;
+}) {
+  const body = await api<{
+    data: {
+      settings: {
+        commissionBps: number;
+        currency: string;
+        debtReviewThresholdCents: number;
+        updatedAt: string;
+      };
+    };
+  }>('/api/v1/admin/settings', { method: 'PATCH', body: JSON.stringify(input) });
+  return body.data.settings;
+}
+
+export type AdminOrderRow = {
+  id: string;
+  status: string;
+  totalCents: number;
+  itemsSubtotalCents: number;
+  commissionTotalCents: number;
+  currency: string;
+  buyer: { id: string; email: string; name: string | null };
+  paymentStatus: string | null;
+  vendorOrderCount: number;
+  createdAt: string;
+};
+
+export async function fetchAdminOrders(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const body = await api<{ data: AdminOrderRow[]; meta: { total: number } }>(
+    `/api/v1/admin/orders${qs}`,
+  );
+  return body.data;
+}
+
+export async function fetchAdminOrder(id: string) {
+  const body = await api<{
+    data: {
+      order: {
+        id: string;
+        status: string;
+        totalCents: number;
+        itemsSubtotalCents: number;
+        shippingTotalCents: number;
+        commissionTotalCents: number;
+        currency: string;
+        shipping: {
+          name: string;
+          line1: string;
+          city: string;
+          postalCode: string;
+          country: string;
+        };
+        buyer: { id: string; email: string; name: string | null };
+        payment: { status: string; amountCents: number; paymentIntentId: string | null } | null;
+        vendorOrders: Array<{
+          id: string;
+          status: string;
+          vendor: {
+            id: string;
+            displayName: string;
+            slug: string;
+            ledgerReviewRequired: boolean;
+          };
+          vendorNetCents: number;
+          commissionCents: number;
+          outstandingDebtCents: number;
+          transfer: { status: string; amountCents: number } | null;
+          items: Array<{ id: string; title: string; quantity: number; lineTotalCents: number }>;
+        }>;
+      };
+    };
+  }>(`/api/v1/admin/orders/${id}`);
+  return body.data.order;
+}
+
+export async function refundAdminOrder(id: string, reason: string) {
+  const body = await api<{
+    data: {
+      result: { alreadyRefunded: boolean; debtVendorIds?: string[] };
+      order: { id: string; status: string };
+    };
+  }>(`/api/v1/admin/orders/${id}/refund`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+  return body.data;
+}
+
+export async function fetchAdminAuditLogs(action?: string) {
+  const qs = action ? `?action=${encodeURIComponent(action)}` : '';
+  const body = await api<{
+    data: Array<{
+      id: string;
+      action: string;
+      entity: string;
+      entityId: string;
+      meta: unknown;
+      actor: { id: string; email: string; name: string | null } | null;
+      createdAt: string;
+    }>;
+  }>(`/api/v1/admin/audit-logs${qs}`);
+  return body.data;
+}
+
 export async function fetchCart() {
   const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
     '/api/v1/cart',
@@ -593,6 +733,7 @@ export type VendorEarningsDto = {
   paidOutCents: number;
   last7dNetCents: number;
   last30dNetCents: number;
+  outstandingDebtCents?: number;
   recentTransfers: Array<{
     id: string;
     status: string;

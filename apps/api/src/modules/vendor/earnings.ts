@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@crafthub/db';
+import { getVendorOutstandingDebtCents } from '../../lib/ledger.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireVendor, type VendorRequest } from '../../middleware/vendor.js';
 
@@ -62,6 +63,8 @@ vendorEarningsRouter.get('/', async (req: VendorRequest, res, next) => {
       take: 20,
     });
 
+    const outstandingDebtCents = await getVendorOutstandingDebtCents(vendorId);
+
     res.json({
       data: {
         grossSalesCents,
@@ -72,6 +75,7 @@ vendorEarningsRouter.get('/', async (req: VendorRequest, res, next) => {
         paidOutCents,
         last7dNetCents,
         last30dNetCents,
+        outstandingDebtCents,
         recentTransfers: transfers.map((t) => ({
           id: t.id,
           status: t.status,

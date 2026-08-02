@@ -114,7 +114,7 @@ describe('e2e · cart edges', () => {
       {
         method: 'PATCH',
         cartSession: session,
-        body: JSON.stringify({ qty: 99 }),
+        body: JSON.stringify({ qty: 51 }),
       },
     );
     expect(status).toBe(400);

@@ -46,6 +46,12 @@ export type StripeAdapter = {
     transferGroup: string;
     idempotencyKey: string;
   }) => Promise<{ id: string }>;
+  createRefund: (opts: {
+    paymentIntentId: string;
+    amountCents?: number;
+    idempotencyKey: string;
+    reason?: string;
+  }) => Promise<{ id: string; status: string }>;
   constructWebhookEvent: (rawBody: Buffer, signature: string | undefined) => Stripe.Event;
 };
 
@@ -89,6 +95,12 @@ function createMockAdapter(): StripeAdapter {
     async createTransfer(opts) {
       return {
         id: `tr_mock_${opts.idempotencyKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`,
+      };
+    },
+    async createRefund(opts) {
+      return {
+        id: `re_mock_${opts.idempotencyKey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`,
+        status: 'succeeded',
       };
     },
     constructWebhookEvent(rawBody, _signature) {
@@ -206,6 +218,18 @@ function createLiveAdapter(): StripeAdapter {
         { idempotencyKey: opts.idempotencyKey },
       );
       return { id: transfer.id };
+    },
+    async createRefund(opts) {
+      const refund = await stripe.refunds.create(
+        {
+          payment_intent: opts.paymentIntentId,
+          amount: opts.amountCents,
+          reason: 'requested_by_customer',
+          metadata: { reason: opts.reason ?? '' },
+        },
+        { idempotencyKey: opts.idempotencyKey },
+      );
+      return { id: refund.id, status: refund.status ?? 'succeeded' };
     },
     constructWebhookEvent(rawBody, signature) {
       if (!env.STRIPE_WEBHOOK_SECRET) {

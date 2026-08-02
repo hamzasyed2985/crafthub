@@ -90,6 +90,12 @@ Vendors fulfill paid slices (`paid` → optional `fulfilling` → `shipped`), op
 
 Verify: pay an order → vendor marks shipped with tracking → buyer order shows tracking; earnings net/gross update.
 
+## Phase 5 — Admin finance + vendor debt ledger
+
+Admin metrics, order refunds, commission settings, and audit log. Refunds always hit Stripe; if a vendor transfer already paid out, CraftHub records a **refund_debt** ledger entry and **nets it against the next payout** (no Stripe transfer reversal). Vendors over the debt threshold get `ledgerReviewRequired`.
+
+Verify: refund a paid order → statuses sync; next sale’s transfer is reduced by outstanding debt.
+
 ## Roadmap
 
 See [docs/14-roadmap.md](./docs/14-roadmap.md).

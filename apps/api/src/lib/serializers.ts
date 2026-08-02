@@ -24,6 +24,7 @@ export function serializeVendor(vendor: VendorWithShop) {
     city: vendor.city,
     craftTags: vendor.craftTags,
     status: vendor.status,
+    ledgerReviewRequired: vendor.ledgerReviewRequired,
     shop: vendor.shop
       ? {
           id: vendor.shop.id,

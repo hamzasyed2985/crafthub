@@ -64,6 +64,11 @@ enum TransferStatus {
   failed
 }
 
+enum VendorLedgerKind {
+  refund_debt
+  debt_offset
+}
+
 model User {
   id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
@@ -99,32 +104,35 @@ model RefreshToken {
 }
 
 model PlatformSettings {
-  id            String   @id @default(uuid()) @db.Uuid
-  commissionBps Int      @default(1000) @map("commission_bps")
-  currency      String   @default("USD")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id                        String   @id @default(uuid()) @db.Uuid
+  commissionBps             Int      @default(1000) @map("commission_bps")
+  currency                  String   @default("USD")
+  debtReviewThresholdCents  Int      @default(10000) @map("debt_review_threshold_cents")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
 }
 
 model VendorProfile {
-  id          String       @id @default(uuid()) @db.Uuid
-  userId      String       @unique @map("user_id") @db.Uuid
-  displayName String       @map("display_name")
-  slug        String       @unique
-  bio         String?
-  logoUrl     String?      @map("logo_url")
-  bannerUrl   String?      @map("banner_url")
-  city        String?
-  craftTags   String[]     @default([]) @map("craft_tags")
-  status      VendorStatus @default(pending)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id                   String       @id @default(uuid()) @db.Uuid
+  userId               String       @unique @map("user_id") @db.Uuid
+  displayName          String       @map("display_name")
+  slug                 String       @unique
+  bio                  String?
+  logoUrl              String?      @map("logo_url")
+  bannerUrl            String?      @map("banner_url")
+  city                 String?
+  craftTags            String[]     @default([]) @map("craft_tags")
+  status               VendorStatus @default(pending)
+  ledgerReviewRequired Boolean      @default(false) @map("ledger_review_required")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   shop          Shop?
   stripeAccount StripeAccount?
   vendorOrders  VendorOrder[]
+  ledgerEntries VendorLedgerEntry[]
 
   @@map("vendor_profiles")
 }
@@ -419,6 +427,27 @@ model Transfer {
   vendorOrder VendorOrder @relation(fields: [vendorOrderId], references: [id], onDelete: Cascade)
 
   @@map("transfers")
+}
+
+/// Vendor payout ledger: refund_debt after money already transferred; debt_offset when
+/// later transfers are reduced to recover that debt (Amazon-style netting).
+model VendorLedgerEntry {
+  id            String           @id @default(uuid()) @db.Uuid
+  vendorId      String           @map("vendor_id") @db.Uuid
+  kind          VendorLedgerKind
+  amountCents   Int              @map("amount_cents")
+  currency      String           @default("USD")
+  orderId       String?          @map("order_id") @db.Uuid
+  vendorOrderId String?          @map("vendor_order_id") @db.Uuid
+  note          String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  vendor VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([kind])
+  @@index([orderId])
+  @@map("vendor_ledger_entries")
 }
 
 model AuditLog {

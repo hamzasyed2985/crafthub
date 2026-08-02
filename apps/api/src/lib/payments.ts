@@ -1,7 +1,7 @@
 import { prisma } from '@crafthub/db';
 import type Stripe from 'stripe';
-import { getStripe } from './stripe.js';
 import { cancelPendingOrder, releaseOrderReservations } from './orders.js';
+import { payoutVendorOrder, refundOrder } from './refunds.js';
 import { logger } from './logger.js';
 
 /**
@@ -78,7 +78,6 @@ export async function markOrderPaid(opts: {
     }
   });
 
-  const stripe = getStripe();
   const refreshed = await prisma.vendorOrder.findMany({
     where: { orderId: order.id },
     include: { vendor: { include: { stripeAccount: true } }, transfer: true },
@@ -86,47 +85,14 @@ export async function markOrderPaid(opts: {
 
   for (const vo of refreshed) {
     if (vo.transfer) continue;
-    const destination = vo.vendor.stripeAccount?.stripeAccountId;
-    if (!destination || vo.vendorNetCents <= 0) {
-      await prisma.transfer.create({
-        data: {
-          vendorOrderId: vo.id,
-          amountCents: vo.vendorNetCents,
-          status: 'failed',
-          stripeTransferId: null,
-        },
-      });
-      continue;
-    }
-
-    try {
-      const transfer = await stripe.createTransfer({
-        amountCents: vo.vendorNetCents,
-        currency: order.currency,
-        destination,
-        transferGroup: order.id,
-        idempotencyKey: `transfer-${vo.id}`,
-      });
-      await prisma.transfer.create({
-        data: {
-          vendorOrderId: vo.id,
-          amountCents: vo.vendorNetCents,
-          currency: order.currency,
-          status: 'paid',
-          stripeTransferId: transfer.id,
-        },
-      });
-    } catch (err) {
-      logger.error({ err, vendorOrderId: vo.id }, 'Transfer failed');
-      await prisma.transfer.create({
-        data: {
-          vendorOrderId: vo.id,
-          amountCents: vo.vendorNetCents,
-          currency: order.currency,
-          status: 'failed',
-        },
-      });
-    }
+    await payoutVendorOrder({
+      vendorOrderId: vo.id,
+      orderId: order.id,
+      vendorId: vo.vendorId,
+      vendorNetCents: vo.vendorNetCents,
+      currency: order.currency,
+      destination: vo.vendor.stripeAccount?.stripeAccountId,
+    });
   }
 }
 
@@ -158,6 +124,20 @@ function orderIdFromPaymentIntent(pi: Stripe.PaymentIntent): string | null {
   return pi.metadata?.orderId ?? null;
 }
 
+async function syncRefundFromStripe(paymentIntentId: string | null | undefined) {
+  if (!paymentIntentId) return;
+  const payment = await prisma.payment.findFirst({
+    where: { paymentIntentId },
+  });
+  if (!payment) return;
+  await refundOrder({
+    orderId: payment.orderId,
+    actorId: null,
+    reason: 'Synced from Stripe refund webhook',
+    skipStripe: true,
+  });
+}
+
 /**
  * Process a verified Stripe event. Inserts payment_events first for idempotency.
  * Returns whether the event was newly processed.
@@ -172,7 +152,6 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
       },
     });
   } catch (err) {
-    // Unique constraint → already processed
     if (
       err &&
       typeof err === 'object' &&
@@ -207,7 +186,6 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
       if (orderId) {
         await markOrderPaid({ orderId, paymentIntentId: pi.id });
       } else {
-        // Fallback: look up payment by intent id
         const payment = await prisma.payment.findFirst({
           where: { paymentIntentId: pi.id },
         });
@@ -243,8 +221,29 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
       await syncStripeAccountFromEvent(event.data.object as Stripe.Account);
       break;
     }
-    default:
+    case 'charge.refunded': {
+      const charge = event.data.object as Stripe.Charge;
+      const pi =
+        typeof charge.payment_intent === 'string'
+          ? charge.payment_intent
+          : charge.payment_intent?.id ?? null;
+      await syncRefundFromStripe(pi);
       break;
+    }
+    case 'refund.created': {
+      const refund = event.data.object as Stripe.Refund;
+      const pi =
+        typeof refund.payment_intent === 'string'
+          ? refund.payment_intent
+          : refund.payment_intent?.id ?? null;
+      await syncRefundFromStripe(pi);
+      break;
+    }
+    default: {
+      const _exhaustive: string = event.type;
+      void _exhaustive;
+      break;
+    }
   }
 
   void releaseOrderReservations;

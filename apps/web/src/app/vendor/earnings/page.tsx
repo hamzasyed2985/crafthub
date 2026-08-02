@@ -37,6 +37,7 @@ export default function VendorEarningsPage() {
     { label: 'Paid out', cents: earnings.paidOutCents },
     { label: 'Net (7d)', cents: earnings.last7dNetCents },
     { label: 'Net (30d)', cents: earnings.last30dNetCents },
+    { label: 'Outstanding debt', cents: earnings.outstandingDebtCents ?? 0 },
   ];
 
   return (
