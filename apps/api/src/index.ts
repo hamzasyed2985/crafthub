@@ -4,6 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { ZodError } from 'zod';
 import { router } from './routes.js';
+import { stripeWebhookRouter } from './modules/webhooks/stripe.js';
 import { env } from './env.js';
 import { AppError, errorHandler, sendError } from './lib/errors.js';
 import { logger } from './lib/logger.js';
@@ -15,9 +16,19 @@ app.use(
   cors({
     origin: env.CORS_ORIGIN,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Session'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Cart-Session',
+      'Idempotency-Key',
+      'Stripe-Signature',
+    ],
   }),
 );
+
+// Stripe webhooks need the raw body for signature verification.
+app.use('/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookRouter);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(router);
@@ -35,7 +46,10 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
 });
 
 app.listen(env.API_PORT, () => {
-  logger.info(`CraftHub API listening on :${env.API_PORT}`);
+  logger.info(
+    { stripeMock: env.useStripeMock },
+    `CraftHub API listening on :${env.API_PORT}`,
+  );
 });
 
 process.on('unhandledRejection', (reason) => {

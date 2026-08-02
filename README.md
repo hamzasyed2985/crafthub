@@ -18,16 +18,17 @@ Next.js · Tailwind CSS · Express · PostgreSQL · Redis · BullMQ · Stripe Co
 apps/
   web/       # Next.js (buyer, vendor, admin)
   api/       # Express API
-  worker/    # BullMQ consumers (stub in Phase 0)
+  worker/    # BullMQ consumers (reservation expiry)
 packages/
   db/        # Prisma schema + client
   shared/    # Zod schemas, enums
   ui/        # Design tokens + primitives
 infra/docker/
 docs/
+tests/e2e/   # API end-to-end suites
 ```
 
-## Local setup (Phase 0+)
+## Local setup
 
 Prerequisites: Node 20+, Docker Desktop, [pnpm](https://pnpm.io) 9+.
 
@@ -39,8 +40,9 @@ pnpm db:generate
 pnpm db:push
 pnpm db:seed
 pnpm --filter @crafthub/shared build
-pnpm dev:api    # :4000
-pnpm dev:web    # :3000
+pnpm dev:api     # :4000
+pnpm dev:web     # :3000
+pnpm dev:worker  # reservation expiry (optional locally)
 ```
 
 Seed accounts:
@@ -49,12 +51,45 @@ Seed accounts:
 - Vendor (pottery): `pottery@crafthub.local` / `Vendor123!` → `/shops/clay-ember`
 - Vendor (wood): `wood@crafthub.local` / `Vendor123!` → `/shops/grain-groove`
 
+## Phase 3 — Checkout & Stripe Connect
+
+**Charge model:** one platform Checkout Session per cart; **separate charges & transfers** after `checkout.session.completed`. Platform keeps `commission_bps` (default 10%); each vendor receives item net + their flat shipping via Connect transfer (`transfer_group = orderId`).
+
+### Mock mode (default without keys)
+
+`.env.example` sets `E2E_STRIPE_MOCK=1`. With an empty `STRIPE_SECRET_KEY`, the API uses a mock Stripe adapter:
+
+1. Vendor → `/vendor/onboarding` → **Connect with Stripe** (enables `charges_enabled` immediately)
+2. Buyer adds cart → `/checkout` → Pay → redirected to `/checkout/success`
+3. Success page posts a mock webhook → order becomes `paid`, stock decrements, transfers recorded
+
+### Real Stripe test mode
+
+1. Put `sk_test_…`, `pk_test_…`, and `whsec_…` in `.env`; unset `E2E_STRIPE_MOCK`
+2. Forward webhooks: `stripe listen --forward-to localhost:4000/webhooks/stripe`
+3. Complete Express onboarding for each vendor, then pay with test card `4242 4242 4242 4242`
+
+Never mark an order paid from the browser success URL alone — webhooks are the source of truth.
+
+### E2E
+
+```bash
+# API running with mock Stripe
+pnpm test:e2e
+```
+
 Verify:
 
 - `GET http://localhost:4000/health` → `{ "status": "ok" }`
-- Public shops: `/shops/clay-ember`, `/shops/grain-groove`
-- Multi-vendor cart: add Ember Mug + Walnut Board → cart groups by vendor
+- Multi-vendor cart → checkout → paid order after webhook
+- Vendor `/vendor/orders` shows paid slices
+
+## Phase 4 — Vendor ops
+
+Vendors fulfill paid slices (`paid` → optional `fulfilling` → `shipped`), optionally add tracking, and see earnings from DB aggregates (`/vendor/earnings`, dashboard widgets). Buyers see shipment status and tracking on order detail.
+
+Verify: pay an order → vendor marks shipped with tracking → buyer order shows tracking; earnings net/gross update.
 
 ## Roadmap
 
-See [docs/14-roadmap.md](./docs/14-roadmap.md). Phase 0 = foundation (this scaffold). Next: vendors & catalog.
+See [docs/14-roadmap.md](./docs/14-roadmap.md).

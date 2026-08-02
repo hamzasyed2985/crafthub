@@ -26,12 +26,12 @@ export function requireVendor(opts?: { requireApproved?: boolean }) {
         throw new AppError(403, 'NOT_A_VENDOR', 'Vendor profile required');
       }
 
-      if (opts?.requireApproved && vendor.status !== 'approved') {
-        throw new AppError(403, 'VENDOR_NOT_APPROVED', 'Vendor must be approved');
-      }
-
       if (vendor.status === 'suspended') {
         throw new AppError(403, 'VENDOR_SUSPENDED', 'This shop is suspended');
+      }
+
+      if (opts?.requireApproved && vendor.status !== 'approved') {
+        throw new AppError(403, 'VENDOR_NOT_APPROVED', 'Vendor must be approved');
       }
 
       req.vendorId = vendor.id;

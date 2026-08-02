@@ -137,9 +137,9 @@ export default function CartPage() {
           <span>Total</span>
           <Price cents={cart.totalCents} />
         </div>
-        <Button className="mt-4 w-full" disabled>
-          Checkout (Phase 3)
-        </Button>
+        <Link href="/checkout">
+          <Button className="mt-4 w-full">Checkout</Button>
+        </Link>
       </div>
     </div>
   );

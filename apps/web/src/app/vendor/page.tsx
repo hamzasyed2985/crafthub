@@ -2,18 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@crafthub/ui';
-import { fetchVendorMe, fetchVendorProducts, type ProductDto } from '@/lib/api';
+import { Button, Price } from '@crafthub/ui';
+import {
+  fetchVendorDashboard,
+  fetchVendorProducts,
+  type ProductDto,
+  type VendorDashboardDto,
+} from '@/lib/api';
 
 export default function VendorDashboardPage() {
-  const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
+  const [dash, setDash] = useState<VendorDashboardDto | null>(null);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchVendorMe(), fetchVendorProducts().catch(() => [] as ProductDto[])])
-      .then(([v, p]) => {
-        setVendor(v);
+    Promise.all([
+      fetchVendorDashboard(),
+      fetchVendorProducts().catch(() => [] as ProductDto[]),
+    ])
+      .then(([d, p]) => {
+        setDash(d);
         setProducts(p);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
@@ -28,10 +36,20 @@ export default function VendorDashboardPage() {
     );
   }
 
-  if (!vendor) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (!dash) return <p className="px-6 py-12 text-subtle">Loading…</p>;
 
+  const vendor = dash.vendor;
   const status = String(vendor.status);
-  const lowStock = products.filter((p) => (p.variants[0]?.stockQty ?? 0) < 3 && p.status === 'active');
+  const stripe = vendor.stripe as
+    | { chargesEnabled?: boolean; onboardingComplete?: boolean }
+    | null
+    | undefined;
+  const stripeIncomplete =
+    status === 'approved' &&
+    (!stripe?.chargesEnabled || !stripe?.onboardingComplete);
+  const lowStock = products.filter(
+    (p) => (p.variants[0]?.stockQty ?? 0) < 3 && p.status === 'active',
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
@@ -51,10 +69,15 @@ export default function VendorDashboardPage() {
             ) : null}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/vendor/shop">
             <Button variant="secondary" size="sm">
               Edit shop
+            </Button>
+          </Link>
+          <Link href="/vendor/earnings">
+            <Button variant="secondary" size="sm">
+              Earnings
             </Button>
           </Link>
           <Link href="/vendor/products/new">
@@ -75,20 +98,51 @@ export default function VendorDashboardPage() {
         </p>
       ) : null}
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-3">
+      {stripeIncomplete ? (
+        <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
+          Stripe Connect is incomplete — buyers can&apos;t check out your products until you{' '}
+          <Link href="/vendor/onboarding" className="underline">
+            finish onboarding
+          </Link>
+          .
+        </p>
+      ) : null}
+
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-md border border-border bg-elevated p-4">
+          <p className="text-sm text-subtle">To fulfill</p>
+          <p className="font-display text-3xl">
+            <Link href="/vendor/orders?status=paid" className="hover:text-accent">
+              {dash.ordersToFulfill}
+            </Link>
+          </p>
+        </div>
+        <div className="rounded-md border border-border bg-elevated p-4">
+          <p className="text-sm text-subtle">Net (7d)</p>
+          <p className="font-display text-3xl">
+            <Price cents={dash.net7dCents} />
+          </p>
+        </div>
+        <div className="rounded-md border border-border bg-elevated p-4">
+          <p className="text-sm text-subtle">Net (30d)</p>
+          <p className="font-display text-3xl">
+            <Price cents={dash.net30dCents} />
+          </p>
+        </div>
         <div className="rounded-md border border-border bg-elevated p-4">
           <p className="text-sm text-subtle">Products</p>
           <p className="font-display text-3xl">{products.length}</p>
+          <p className="text-xs text-subtle">Low stock: {lowStock.length}</p>
         </div>
-        <div className="rounded-md border border-border bg-elevated p-4">
-          <p className="text-sm text-subtle">Low stock</p>
-          <p className="font-display text-3xl">{lowStock.length}</p>
-        </div>
-        <div className="rounded-md border border-border bg-elevated p-4">
-          <p className="text-sm text-subtle">Orders</p>
-          <p className="font-display text-3xl text-subtle">—</p>
-          <p className="text-xs text-subtle">Phase 4</p>
-        </div>
+      </div>
+
+      <div className="mt-6 flex gap-4 text-sm">
+        <Link href="/vendor/orders" className="text-accent">
+          All orders →
+        </Link>
+        <Link href="/vendor/earnings" className="text-accent">
+          Earnings →
+        </Link>
       </div>
 
       <h2 className="mt-12 font-display text-2xl">Products</h2>
@@ -100,7 +154,8 @@ export default function VendorDashboardPage() {
                 {p.title}
               </Link>
               <p className="text-sm text-subtle">
-                {p.status} · {p.variants[0] ? `$${(p.variants[0].priceCents / 100).toFixed(2)}` : '—'}
+                {p.status} ·{' '}
+                {p.variants[0] ? `$${(p.variants[0].priceCents / 100).toFixed(2)}` : '—'}
               </p>
             </div>
             <Link href={`/vendor/products/${p.id}`} className="text-sm text-accent">

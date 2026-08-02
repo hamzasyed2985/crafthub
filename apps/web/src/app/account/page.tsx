@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { fetchMe, type AuthUser, type VendorSummary } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { Button } from '@crafthub/ui';
+import { fetchMe, logout, type AuthUser, type VendorSummary } from '@/lib/api';
 
 export default function AccountPage() {
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [vendor, setVendor] = useState<VendorSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     fetchMe()
@@ -17,6 +21,17 @@ export default function AccountPage() {
       })
       .catch(() => setError('Sign in to view your account.'));
   }, []);
+
+  async function onLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.push('/');
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   if (error) {
     return (
@@ -49,6 +64,11 @@ export default function AccountPage() {
         <dt className="text-subtle">Status</dt>
         <dd className="m-0">{user.status}</dd>
       </dl>
+      <p className="mt-6">
+        <Link href="/account/orders" className="text-accent">
+          View your orders
+        </Link>
+      </p>
       {vendor ? (
         <p className="mt-6 text-sm">
           Vendor shop: <strong>{vendor.displayName}</strong> ({vendor.status}) —{' '}
@@ -63,6 +83,11 @@ export default function AccountPage() {
           </Link>
         </p>
       ) : null}
+      <div className="mt-8">
+        <Button variant="secondary" disabled={loggingOut} onClick={() => void onLogout()}>
+          {loggingOut ? 'Signing out…' : 'Log out'}
+        </Button>
+      </div>
     </div>
   );
 }

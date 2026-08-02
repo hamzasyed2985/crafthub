@@ -12,6 +12,8 @@
     "test": "echo \"no tests yet\""
   },
   "dependencies": {
+    "@crafthub/db": "workspace:*",
+    "bullmq": "^5.34.8",
     "dotenv": "^16.4.7",
     "ioredis": "^5.4.2",
     "pino": "^9.6.0"

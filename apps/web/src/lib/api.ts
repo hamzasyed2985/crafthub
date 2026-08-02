@@ -192,6 +192,15 @@ export async function fetchMe(): Promise<{ user: AuthUser; vendor: VendorSummary
   return body.data;
 }
 
+export async function logout() {
+  try {
+    await api('/api/v1/auth/logout', { method: 'POST' });
+  } catch {
+    // Still clear local session even if the API call fails
+  }
+  clearAccessToken();
+}
+
 export async function fetchCategories() {
   const body = await api<{ data: Array<{ id: string; name: string; slug: string }> }>(
     '/api/v1/categories',
@@ -366,4 +375,276 @@ export async function clearCart() {
   );
   rememberCartSession(body);
   return body.data.cart;
+}
+
+export type OrderDto = {
+  id: string;
+  status: string;
+  currency: string;
+  itemsSubtotalCents: number;
+  shippingTotalCents: number;
+  totalCents: number;
+  commissionTotalCents: number;
+  shipping: {
+    name: string;
+    line1: string;
+    line2: string | null;
+    city: string;
+    region: string | null;
+    postalCode: string;
+    country: string;
+  };
+  payment: {
+    status: string;
+    amountCents: number;
+    checkoutSessionId: string | null;
+    paymentIntentId: string | null;
+  } | null;
+  vendorOrders: Array<{
+    id: string;
+    status: string;
+    vendor: { id: string; displayName: string; slug: string };
+    itemsSubtotalCents: number;
+    shippingCents: number;
+    commissionCents: number;
+    vendorNetCents: number;
+    trackingNumber?: string | null;
+    carrier?: string | null;
+    shippedAt?: string | null;
+    fulfillingAt?: string | null;
+    items: Array<{
+      id: string;
+      title: string;
+      quantity: number;
+      unitPriceCents: number;
+      lineTotalCents: number;
+    }>;
+  }>;
+  createdAt: string;
+};
+
+export async function createCheckoutSession(input: {
+  shipping: {
+    name: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+    region?: string | null;
+    postalCode: string;
+    country?: string;
+  };
+  saveAddress?: boolean;
+  idempotencyKey?: string;
+}) {
+  const headers: HeadersInit = {};
+  if (input.idempotencyKey) headers['Idempotency-Key'] = input.idempotencyKey;
+  const body = await api<{
+    data: {
+      orderId: string;
+      checkoutUrl: string;
+      checkoutSessionId: string;
+      order: OrderDto;
+    };
+  }>('/api/v1/checkout/session', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      shipping: input.shipping,
+      saveAddress: input.saveAddress ?? false,
+    }),
+  });
+  return body.data;
+}
+
+export async function fetchOrders() {
+  const body = await api<{ data: OrderDto[] }>('/api/v1/orders');
+  return body.data;
+}
+
+export async function fetchOrder(id: string) {
+  const body = await api<{ data: { order: OrderDto } }>(`/api/v1/orders/${id}`);
+  return body.data.order;
+}
+
+/** Ask API to verify Stripe session and mark paid (webhook backup for localhost). */
+export async function confirmOrderPayment(id: string) {
+  const body = await api<{ data: { order: OrderDto; alreadyPaid: boolean } }>(
+    `/api/v1/orders/${id}/confirm-payment`,
+    { method: 'POST' },
+  );
+  return body.data;
+}
+
+export async function startVendorStripeOnboard() {
+  const body = await api<{
+    data: {
+      url: string;
+      stripe: {
+        chargesEnabled: boolean;
+        payoutsEnabled: boolean;
+        onboardingComplete: boolean;
+        hasAccount: boolean;
+      };
+    };
+  }>('/api/v1/vendor/stripe/onboard', { method: 'POST' });
+  return body.data;
+}
+
+export async function refreshVendorStripe() {
+  const body = await api<{
+    data: {
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      onboardingComplete: boolean;
+      hasAccount?: boolean;
+      mock?: boolean;
+    };
+  }>('/api/v1/vendor/stripe/refresh', { method: 'POST' });
+  return body.data;
+}
+
+export async function fetchVendorStripeStatus() {
+  const body = await api<{
+    data: {
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      onboardingComplete: boolean;
+      hasAccount?: boolean;
+      mock?: boolean;
+    };
+  }>('/api/v1/vendor/stripe/status');
+  return body.data;
+}
+
+export async function fetchVendorOrders(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const body = await api<{
+    data: VendorOrderDto[];
+  }>(`/api/v1/vendor/orders${qs}`);
+  return body.data;
+}
+
+export type VendorOrderDto = {
+  id: string;
+  status: string;
+  vendorNetCents: number;
+  commissionCents: number;
+  itemsSubtotalCents: number;
+  shippingCents: number;
+  commissionBps: number;
+  trackingNumber: string | null;
+  carrier: string | null;
+  fulfillingAt: string | null;
+  shippedAt: string | null;
+  order: {
+    id: string;
+    status: string;
+    shipName: string;
+    shipLine1: string;
+    shipLine2: string | null;
+    shipCity: string;
+    shipRegion: string | null;
+    shipPostalCode: string;
+    shipCountry: string;
+    createdAt: string;
+  };
+  items: Array<{
+    id: string;
+    title: string;
+    quantity: number;
+    lineTotalCents: number;
+    unitPriceCents: number;
+  }>;
+  transfer: { status: string; amountCents: number; stripeTransferId: string | null } | null;
+};
+
+export async function fetchVendorOrder(id: string) {
+  const body = await api<{ data: { vendorOrder: VendorOrderDto } }>(
+    `/api/v1/vendor/orders/${id}`,
+  );
+  return body.data.vendorOrder;
+}
+
+export async function fulfillVendorOrder(id: string) {
+  const body = await api<{ data: { vendorOrder: VendorOrderDto } }>(
+    `/api/v1/vendor/orders/${id}/fulfill`,
+    { method: 'POST', body: '{}' },
+  );
+  return body.data.vendorOrder;
+}
+
+export async function shipVendorOrder(
+  id: string,
+  input?: { trackingNumber?: string; carrier?: string },
+) {
+  const body = await api<{ data: { vendorOrder: VendorOrderDto } }>(
+    `/api/v1/vendor/orders/${id}/ship`,
+    { method: 'POST', body: JSON.stringify(input ?? {}) },
+  );
+  return body.data.vendorOrder;
+}
+
+export type VendorEarningsDto = {
+  grossSalesCents: number;
+  commissionCents: number;
+  netCents: number;
+  shippingCents: number;
+  pendingPayoutCents: number;
+  paidOutCents: number;
+  last7dNetCents: number;
+  last30dNetCents: number;
+  recentTransfers: Array<{
+    id: string;
+    status: string;
+    amountCents: number;
+    currency: string;
+    stripeTransferId: string | null;
+    vendorOrderId: string;
+    orderId: string;
+    vendorOrderStatus: string;
+    createdAt: string;
+  }>;
+};
+
+export async function fetchVendorEarnings() {
+  const body = await api<{ data: VendorEarningsDto }>('/api/v1/vendor/earnings');
+  return body.data;
+}
+
+export type VendorDashboardDto = {
+  ordersToFulfill: number;
+  net7dCents: number;
+  net30dCents: number;
+  vendor: Record<string, unknown>;
+};
+
+export async function fetchVendorDashboard() {
+  const body = await api<{ data: VendorDashboardDto }>('/api/v1/vendor/dashboard');
+  return body.data;
+}
+
+/** Mock-mode only: simulate checkout.session.completed for an order. */
+export async function simulateCheckoutPaid(orderId: string, checkoutSessionId: string) {
+  const event = {
+    id: `evt_mock_${orderId.replace(/-/g, '').slice(0, 16)}_${Date.now()}`,
+    object: 'event',
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: checkoutSessionId,
+        object: 'checkout.session',
+        payment_status: 'paid',
+        metadata: { orderId },
+        client_reference_id: orderId,
+        payment_intent: `pi_mock_${orderId.replace(/-/g, '').slice(0, 12)}`,
+      },
+    },
+  };
+  const res = await fetch(`${API_URL}/webhooks/stripe/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
 }

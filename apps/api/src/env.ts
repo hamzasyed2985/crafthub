@@ -15,6 +15,11 @@ const envSchema = z.object({
   JWT_REFRESH_TTL: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   APP_URL: z.string().default('http://localhost:3000'),
+  STRIPE_SECRET_KEY: z.string().optional().default(''),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional().default(''),
+  STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
+  E2E_STRIPE_MOCK: z.string().optional().default(''),
+  RESERVATION_TTL_MINUTES: z.coerce.number().default(30),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -24,4 +29,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+export const env = {
+  ...parsed.data,
+  useStripeMock:
+    parsed.data.E2E_STRIPE_MOCK === '1' ||
+    parsed.data.E2E_STRIPE_MOCK === 'true' ||
+    !parsed.data.STRIPE_SECRET_KEY,
+};

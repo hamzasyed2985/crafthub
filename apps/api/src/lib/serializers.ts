@@ -38,6 +38,7 @@ export function serializeVendor(vendor: VendorWithShop) {
           onboardingComplete: vendor.stripeAccount.onboardingComplete,
           chargesEnabled: vendor.stripeAccount.chargesEnabled,
           payoutsEnabled: vendor.stripeAccount.payoutsEnabled,
+          hasAccount: Boolean(vendor.stripeAccount.stripeAccountId),
         }
       : null,
     createdAt: vendor.createdAt.toISOString(),

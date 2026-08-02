@@ -1,17 +1,20 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Button } from '@crafthub/ui';
 import { useEffect, useState } from 'react';
-import { fetchMe, type AuthUser } from '@/lib/api';
+import { fetchMe, logout, type AuthUser } from '@/lib/api';
 import { useCart } from '@/components/cart-provider';
 
 export function SiteHeader() {
+  const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const { cart, openDrawer } = useCart();
+  const { cart, openDrawer, refresh } = useCart();
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -22,6 +25,19 @@ export function SiteHeader() {
 
   const isDark = (resolvedTheme ?? theme) === 'dark';
   const count = cart?.itemCount ?? 0;
+
+  async function onLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      setUser(null);
+      await refresh().catch(() => undefined);
+      router.push('/');
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-elevated/90 px-6 py-3.5 backdrop-blur-sm">
@@ -47,20 +63,30 @@ export function SiteHeader() {
           <Link href="/vendor" className="text-sm text-muted hover:text-foreground">
             Dashboard
           </Link>
-        ) : (
+        ) : user?.role !== 'admin' ? (
           <Link href="/vendor/apply" className="text-sm text-muted hover:text-foreground">
             Sell
           </Link>
-        )}
+        ) : null}
         {user?.role === 'admin' ? (
           <Link href="/admin/vendors" className="text-sm text-muted hover:text-foreground">
             Admin
           </Link>
         ) : null}
         {user ? (
-          <Link href="/account" className="text-sm text-muted hover:text-foreground">
-            Account
-          </Link>
+          <>
+            <Link href="/account" className="text-sm text-muted hover:text-foreground">
+              Account
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={loggingOut}
+              onClick={() => void onLogout()}
+            >
+              {loggingOut ? '…' : 'Log out'}
+            </Button>
+          </>
         ) : (
           <>
             <Link href="/login" className="text-[0.95rem] text-muted">
