@@ -473,6 +473,42 @@ export async function fetchAdminAuditLogs(action?: string) {
   return body.data;
 }
 
+export async function searchCatalog(q: string) {
+  const body = await api<{
+    data: { products: ProductDto[]; shops: VendorSummary[] };
+    meta: { totalProducts: number; totalShops: number; page: number; limit: number; q: string };
+  }>(`/api/v1/search?q=${encodeURIComponent(q)}`);
+  return { ...body.data, meta: body.meta };
+}
+
+export type ReviewDto = {
+  id: string;
+  rating: number;
+  body: string;
+  verifiedPurchase: boolean;
+  user: { id: string; name: string };
+  createdAt: string;
+};
+
+export async function fetchProductReviews(productId: string) {
+  const body = await api<{
+    data: ReviewDto[];
+    meta: { total: number; averageRating: number | null; reviewCount: number };
+  }>(`/api/v1/products/${productId}/reviews`);
+  return { reviews: body.data, meta: body.meta };
+}
+
+export async function createProductReview(
+  productId: string,
+  input: { rating: number; body?: string },
+) {
+  const body = await api<{ data: { review: ReviewDto } }>(
+    `/api/v1/products/${productId}/reviews`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+  return body.data.review;
+}
+
 export async function fetchCart() {
   const body = await api<{ data: { cart: CartDto; cartSessionId?: string | null } }>(
     '/api/v1/cart',

@@ -52,10 +52,34 @@ export function SiteHeader() {
           <Link href="/shops" className="hover:text-foreground">
             Makers
           </Link>
+          <Link href="/search" className="hover:text-foreground">
+            Search
+          </Link>
         </nav>
       </div>
 
       <nav className="flex items-center gap-3">
+        <form
+          action="/search"
+          method="get"
+          className="hidden md:block"
+          onSubmit={(e) => {
+            const form = e.currentTarget;
+            const input = form.querySelector('input[name="q"]') as HTMLInputElement | null;
+            if (!input?.value.trim()) {
+              e.preventDefault();
+              router.push('/search');
+            }
+          }}
+        >
+          <input
+            name="q"
+            type="search"
+            placeholder="Search…"
+            className="min-h-9 w-40 rounded-sm border border-border bg-canvas px-2 text-sm text-foreground lg:w-52"
+            aria-label="Search CraftHub"
+          />
+        </form>
         <Button variant="ghost" size="sm" aria-label="Open cart" onClick={openDrawer}>
           Cart{count > 0 ? ` (${count})` : ''}
         </Button>
@@ -69,7 +93,7 @@ export function SiteHeader() {
           </Link>
         ) : null}
         {user?.role === 'admin' ? (
-          <Link href="/admin/vendors" className="text-sm text-muted hover:text-foreground">
+          <Link href="/admin" className="text-sm text-muted hover:text-foreground">
             Admin
           </Link>
         ) : null}

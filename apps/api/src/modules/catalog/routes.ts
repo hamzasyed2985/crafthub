@@ -134,6 +134,16 @@ catalogRouter.get('/products', async (req, res, next) => {
             OR: [
               { title: { contains: q, mode: 'insensitive' as const } },
               { description: { contains: q, mode: 'insensitive' as const } },
+              {
+                shop: {
+                  vendor: { displayName: { contains: q, mode: 'insensitive' as const } },
+                },
+              },
+              {
+                shop: {
+                  vendor: { city: { contains: q, mode: 'insensitive' as const } },
+                },
+              },
             ],
           }
         : {}),

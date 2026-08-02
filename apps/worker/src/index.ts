@@ -11,6 +11,7 @@ config();
 const logger = pino({ level: process.env.NODE_ENV === 'production' ? 'info' : 'debug' });
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const RESERVATION_QUEUE = 'reservations';
+const EMAIL_QUEUE = 'emails';
 
 async function cancelPendingOrder(orderId: string, reason: string) {
   await prisma.$transaction(async (tx) => {
@@ -54,10 +55,32 @@ async function expireReservations() {
   return expired.length;
 }
 
+async function sendEmailOutbox(id: string) {
+  const row = await prisma.emailOutbox.findUnique({ where: { id } });
+  if (!row || row.status === 'sent') return;
+
+  const payload = (row.payload ?? {}) as Record<string, unknown>;
+  logger.info(
+    {
+      emailId: row.id,
+      to: row.toEmail,
+      template: row.template,
+      subject: row.subject,
+      payload,
+    },
+    'Email sent (mock)',
+  );
+
+  await prisma.emailOutbox.update({
+    where: { id: row.id },
+    data: { status: 'sent', sentAt: new Date(), error: null },
+  });
+}
+
 async function main() {
   const connection = { url: redisUrl };
 
-  const worker = new Worker(
+  const reservationWorker = new Worker(
     RESERVATION_QUEUE,
     async (job) => {
       if (job.name === 'expire-order') {
@@ -74,8 +97,22 @@ async function main() {
     { connection },
   );
 
-  worker.on('failed', (job, err) => {
+  reservationWorker.on('failed', (job, err) => {
     logger.error({ err, jobId: job?.id }, 'Reservation job failed');
+  });
+
+  const emailWorker = new Worker(
+    EMAIL_QUEUE,
+    async (job) => {
+      if (job.name === 'send') {
+        await sendEmailOutbox(job.data.emailId as string);
+      }
+    },
+    { connection },
+  );
+
+  emailWorker.on('failed', (job, err) => {
+    logger.error({ err, jobId: job?.id }, 'Email job failed');
   });
 
   const queue = new Queue(RESERVATION_QUEUE, { connection });
@@ -88,12 +125,11 @@ async function main() {
     },
   );
 
-  // Connectivity check
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, lazyConnect: true });
   try {
     await redis.connect();
     await redis.ping();
-    logger.info({ redisUrl }, 'CraftHub worker ready (reservation expiry + sweep)');
+    logger.info({ redisUrl }, 'CraftHub worker ready (reservations + emails)');
   } catch (err) {
     logger.warn({ err }, 'Redis not reachable — worker may idle until Redis is up');
   } finally {

@@ -1,6 +1,7 @@
 import { prisma } from '@crafthub/db';
 import { AppError } from './errors.js';
 import { applyDebtOffsetToPayout, recordRefundDebt } from './ledger.js';
+import { enqueueEmail } from './email.js';
 import { getStripe } from './stripe.js';
 import { logger } from './logger.js';
 
@@ -94,6 +95,19 @@ export async function refundOrder(opts: {
       },
     });
   });
+
+  const buyer = await prisma.user.findUnique({ where: { id: order.buyerId } });
+  if (buyer?.email) {
+    try {
+      await enqueueEmail({
+        toEmail: buyer.email,
+        template: 'order.refunded',
+        payload: { orderId: order.id, reason: opts.reason, name: buyer.name },
+      });
+    } catch (err) {
+      logger.warn({ err, orderId: order.id }, 'Failed to enqueue order.refunded email');
+    }
+  }
 
   return {
     orderId: order.id,

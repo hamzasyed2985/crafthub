@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma, type Prisma } from '@crafthub/db';
 import { shipVendorOrderSchema, VENDOR_ORDER_STATUSES } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
+import { enqueueEmail } from '../../lib/email.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireVendor, type VendorRequest } from '../../middleware/vendor.js';
@@ -246,6 +247,27 @@ vendorOrdersRouter.post('/:id/ship', async (req: VendorRequest, res, next) => {
         include: vendorOrderInclude,
       });
     });
+
+    const parent = await prisma.order.findUnique({
+      where: { id: updated.orderId },
+      include: { buyer: true },
+    });
+    if (parent?.buyer.email) {
+      try {
+        await enqueueEmail({
+          toEmail: parent.buyer.email,
+          template: 'order.shipped',
+          payload: {
+            orderId: parent.id,
+            name: parent.buyer.name,
+            trackingNumber: updated.trackingNumber,
+            carrier: updated.carrier,
+          },
+        });
+      } catch {
+        // non-fatal
+      }
+    }
 
     res.json({ data: { vendorOrder: serializeVendorOrder(updated) } });
   } catch (err) {

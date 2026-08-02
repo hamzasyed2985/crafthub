@@ -106,6 +106,17 @@
   --accent-hover: var(--clay-700);
   --accent-muted: var(--clay-100);
 
+  --success: var(--moss-600);
+  --warning: var(--amber-600);
+  --danger: var(--rose-600);
+  --info: var(--ink-700);
+
+  --price: var(--fg);
+  --price-sale: var(--danger);
+  --stock-in: var(--success);
+  --stock-low: var(--warning);
+  --stock-out: var(--fg-subtle);
+
   color-scheme: dark;
 }
 

@@ -96,6 +96,19 @@ Admin metrics, order refunds, commission settings, and audit log. Refunds always
 
 Verify: refund a paid order → statuses sync; next sale’s transfer is reduced by outstanding debt.
 
+## Phase 6 — Trust & polish
+
+Reviews (after shipped purchase), `/search` + header search, email outbox templates (`order.paid` / `shipped` / `refunded` / `vendor.approved`), dark-mode token parity.
+
+### Demo script
+
+1. Toggle **Dark** in the header — surfaces/text stay readable  
+2. Search “mug” or “Islamabad” from `/search`  
+3. Buyer: cart → checkout → pay (webhook) → vendor ships with tracking  
+4. Buyer reviews the product on the PDP (verified purchase)  
+5. Admin: `/admin` metrics → refund an order → vendor debt appears on earnings  
+6. Check API logs / `email_outbox` for mock emails after pay/ship/refund/approve  
+
 ## Roadmap
 
 See [docs/14-roadmap.md](./docs/14-roadmap.md).

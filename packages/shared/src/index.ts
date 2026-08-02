@@ -5,4 +5,5 @@ export * from './schemas/cart.js';
 export * from './schemas/checkout.js';
 export * from './schemas/vendor-orders.js';
 export * from './schemas/admin.js';
+export * from './schemas/reviews.js';
 export * from './types.js';

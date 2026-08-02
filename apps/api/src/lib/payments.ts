@@ -2,6 +2,7 @@ import { prisma } from '@crafthub/db';
 import type Stripe from 'stripe';
 import { cancelPendingOrder, releaseOrderReservations } from './orders.js';
 import { payoutVendorOrder, refundOrder } from './refunds.js';
+import { enqueueEmail } from './email.js';
 import { logger } from './logger.js';
 
 /**
@@ -93,6 +94,20 @@ export async function markOrderPaid(opts: {
       currency: order.currency,
       destination: vo.vendor.stripeAccount?.stripeAccountId,
     });
+  }
+
+  try {
+    await enqueueEmail({
+      toEmail: order.buyer.email,
+      template: 'order.paid',
+      payload: {
+        orderId: order.id,
+        name: order.buyer.name,
+        totalLabel: `$${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+      },
+    });
+  } catch (err) {
+    logger.warn({ err, orderId: order.id }, 'Failed to enqueue order.paid email');
   }
 }
 

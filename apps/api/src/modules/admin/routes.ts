@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '@crafthub/db';
 import { adminVendorPatchSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
+import { enqueueEmail } from '../../lib/email.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
 import { serializeVendor } from '../../lib/serializers.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../../middleware/auth.js';
@@ -87,7 +88,7 @@ adminRouter.patch('/vendors/:id', async (req: AuthedRequest, res, next) => {
       const updated = await tx.vendorProfile.update({
         where: { id: existing.id },
         data: { status: input.status },
-        include: { shop: true, stripeAccount: true },
+        include: { shop: true, stripeAccount: true, user: true },
       });
 
       await tx.auditLog.create({
@@ -103,7 +104,24 @@ adminRouter.patch('/vendors/:id', async (req: AuthedRequest, res, next) => {
       return updated;
     });
 
-    res.json({ data: { vendor: serializeVendor(vendor) } });
+    if (input.status === 'approved' && existing.status !== 'approved' && vendor.user?.email) {
+      try {
+        await enqueueEmail({
+          toEmail: vendor.user.email,
+          template: 'vendor.approved',
+          payload: {
+            name: vendor.user.name,
+            shopName: vendor.displayName,
+          },
+        });
+      } catch {
+        // non-fatal
+      }
+    }
+
+    const { user: _user, ...vendorForSerialize } = vendor;
+    void _user;
+    res.json({ data: { vendor: serializeVendor(vendorForSerialize) } });
   } catch (err) {
     next(err);
   }
