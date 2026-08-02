@@ -344,10 +344,10 @@ Respect `prefers-reduced-motion: reduce` (disable transforms; keep opacity insta
 
 ## 14. Deliverables checklist
 
-- [ ] Token file (light + dark)  
-- [ ] Fonts loaded (display + body + mono)  
-- [ ] Button / Input / ProductCard / Drawer shipped  
-- [ ] Theme toggle wired  
-- [ ] Home hero matches layout rules  
-- [ ] Admin/vendor use same tokens  
-- [ ] Reduced-motion tested  
+- [x] Token file (light + dark)  
+- [x] Fonts loaded (display + body + mono)  
+- [x] Button / Input / ProductCard / Drawer shipped  
+- [x] Theme toggle wired  
+- [x] Home hero matches layout rules  
+- [x] Admin/vendor use same tokens  
+- [x] Reduced-motion tested (`prefers-reduced-motion` in tokens + product card hover)  

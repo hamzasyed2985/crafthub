@@ -1,33 +1,71 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
 import { useCart } from '@/components/cart-provider';
+import { IconClose } from '@/components/icons';
+
+const ANIM_MS = 220;
 
 export function CartDrawer() {
   const { cart, drawerOpen, closeDrawer, setItemQty, removeItem, loading } = useCart();
+  const [mounted, setMounted] = useState(false);
+  const [entered, setEntered] = useState(false);
 
-  if (!drawerOpen) return null;
+  useEffect(() => {
+    if (drawerOpen) {
+      setMounted(true);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setEntered(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+
+    setEntered(false);
+    const t = window.setTimeout(() => setMounted(false), ANIM_MS);
+    return () => window.clearTimeout(t);
+  }, [drawerOpen]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDrawer();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mounted, closeDrawer]);
+
+  if (!mounted) return null;
 
   return (
     <div className="fixed inset-0 z-[30]">
       <button
         type="button"
         aria-label="Close cart"
-        className="absolute inset-0 bg-inverse/40 transition-opacity duration-150"
+        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 motion-reduce:transition-none ${
+          entered ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={closeDrawer}
       />
       <aside
-        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border bg-elevated shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-transform duration-200"
+        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border bg-elevated shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-transform duration-200 ease-out motion-reduce:transition-none ${
+          entered ? 'translate-x-0' : 'translate-x-full'
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label="Shopping cart"
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-display text-xl">Cart</h2>
-          <Button variant="ghost" size="sm" onClick={closeDrawer}>
-            Close
-          </Button>
+          <button
+            type="button"
+            className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-background-subtle hover:text-foreground"
+            aria-label="Close cart"
+            onClick={closeDrawer}
+          >
+            <IconClose />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -59,6 +97,7 @@ export function CartDrawer() {
                     {group.items.map((item) => (
                       <li key={item.id} className="flex gap-3">
                         {item.product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={item.product.imageUrl}
                             alt=""
@@ -134,7 +173,7 @@ export function CartDrawer() {
             <Link href="/cart" onClick={closeDrawer}>
               <Button className="w-full">View cart</Button>
             </Link>
-            <p className="mt-2 text-center text-xs text-subtle">Checkout comes in Phase 3</p>
+            <p className="mt-2 text-center text-xs text-subtle">Or continue to checkout from cart</p>
           </div>
         ) : null}
       </aside>

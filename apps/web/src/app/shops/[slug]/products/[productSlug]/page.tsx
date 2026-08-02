@@ -1,19 +1,23 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import type { ProductDto } from '@/lib/api';
 import { AddToCartButton } from '@/components/add-to-cart-button';
+import { ProductGallery } from '@/components/product-gallery';
 import { ProductReviews } from '@/components/product-reviews';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-async function loadShopProducts(slug: string) {
-  const res = await fetch(`${API_URL}/api/v1/shops/${slug}`, { next: { revalidate: 30 } });
+async function loadProduct(shopSlug: string, productSlug: string) {
+  const res = await fetch(`${API_URL}/api/v1/shops/${shopSlug}/products/${productSlug}`, {
+    next: { revalidate: 30 },
+  });
   if (!res.ok) return null;
   const body = (await res.json()) as {
     data: {
       shop: { displayName: string; slug: string; flatShippingCents: number };
-      products: ProductDto[];
+      product: ProductDto;
     };
   };
   return body.data;
@@ -25,12 +29,11 @@ export async function generateMetadata({
   params: Promise<{ slug: string; productSlug: string }>;
 }): Promise<Metadata> {
   const { slug, productSlug } = await params;
-  const data = await loadShopProducts(slug);
-  const product = data?.products.find((p) => p.slug === productSlug);
-  if (!product) return { title: 'Product not found' };
+  const data = await loadProduct(slug, productSlug);
+  if (!data) return { title: 'Product not found' };
   return {
-    title: product.title,
-    description: product.description.slice(0, 160) || product.title,
+    title: data.product.title,
+    description: data.product.description.slice(0, 160) || data.product.title,
   };
 }
 
@@ -40,38 +43,26 @@ export default async function ProductPage({
   params: Promise<{ slug: string; productSlug: string }>;
 }) {
   const { slug, productSlug } = await params;
-  const data = await loadShopProducts(slug);
-  const product = data?.products.find((p) => p.slug === productSlug);
+  const data = await loadProduct(slug, productSlug);
 
-  if (!data || !product) {
+  if (!data) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-16">
+      <Page size="reading" y="lg">
         <h1 className="font-display text-3xl">Product not found</h1>
         <Link href={`/shops/${slug}`} className="mt-4 inline-block text-accent">
           Back to shop
         </Link>
-      </div>
+      </Page>
     );
   }
 
+  const { product } = data;
   const variant = product.variants[0];
-  const image = product.media[0];
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12">
-      <div className="grid gap-10 md:grid-cols-2">
-        <div className="aspect-[4/5] overflow-hidden rounded-lg bg-background-subtle">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={image.url}
-              alt={image.alt || product.title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-subtle">No image</div>
-          )}
-        </div>
+    <Page size="default">
+      <div className="grid gap-10 md:grid-cols-2 md:items-start">
+        <ProductGallery media={product.media} title={product.title} />
         <div>
           <Link href={`/shops/${slug}`} className="text-sm text-muted hover:text-foreground">
             {data.shop.displayName}
@@ -93,7 +84,9 @@ export default async function ProductPage({
           ) : null}
         </div>
       </div>
-      <ProductReviews productId={product.id} canReview />
-    </div>
+      <div className="mt-14 border-t border-border pt-10">
+        <ProductReviews productId={product.id} canReview />
+      </div>
+    </Page>
   );
 }

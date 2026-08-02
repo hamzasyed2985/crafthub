@@ -48,8 +48,16 @@ pnpm dev:worker  # reservation expiry (optional locally)
 Seed accounts:
 
 - Admin: `admin@crafthub.local` / `Admin123!`
+- Buyer: `buyer@crafthub.local` / `Buyer123!`
 - Vendor (pottery): `pottery@crafthub.local` / `Vendor123!` → `/shops/clay-ember`
 - Vendor (wood): `wood@crafthub.local` / `Vendor123!` → `/shops/grain-groove`
+- Vendor (jewelry): `jewelry@crafthub.local` / `Vendor123!` → `/shops/noor-atelier`
+- Vendor (textiles): `textiles@crafthub.local` / `Vendor123!` → `/shops/loom-light`
+- Vendor (food): `food@crafthub.local` / `Vendor123!` → `/shops/orchard-pantry`
+- Pending vendor: `pending@crafthub.local` / `Vendor123!`
+- Suspended vendor: `suspended@crafthub.local` / `Vendor123!`
+
+Admin finance: `/admin/finance` (commission by vendor + sources). Seed includes orders across pending / paid / shipped / delivered / cancelled / refunded.
 
 ## Phase 3 — Checkout & Stripe Connect
 
@@ -100,6 +108,8 @@ Verify: refund a paid order → statuses sync; next sale’s transfer is reduced
 
 Reviews (after shipped purchase), `/search` + header search, email outbox templates (`order.paid` / `shipped` / `refunded` / `vendor.approved`), dark-mode token parity.
 
+Automated verify: `pnpm test:e2e` → `trust-polish.e2e.test.ts` (search, review-after-ship, paid/shipped/refunded/approved outbox).
+
 ### Demo script
 
 1. Toggle **Dark** in the header — surfaces/text stay readable  
@@ -108,6 +118,31 @@ Reviews (after shipped purchase), `/search` + header search, email outbox templa
 4. Buyer reviews the product on the PDP (verified purchase)  
 5. Admin: `/admin` metrics → refund an order → vendor debt appears on earnings  
 6. Check API logs / `email_outbox` for mock emails after pay/ship/refund/approve  
+
+## Phase 6.5 — AI (Craft Concierge + Listing Copilot)
+
+Grounded retrieval over catalog embeddings (mock by default). **Chat** uses free **Groq** when `GROQ_API_KEY` is set (`E2E_AI_MOCK=0`).
+
+```bash
+# 1. Create a free key at https://console.groq.com/keys
+# 2. In .env:
+#    GROQ_API_KEY=gsk_...
+#    E2E_AI_MOCK=0
+# 3. Restart the API
+
+# Optional: sync-index embeddings as admin
+# POST /api/v1/ai/embeddings/reindex?sync=1
+
+pnpm test:e2e -- tests/e2e/ai.e2e.test.ts
+```
+
+Verify:
+
+1. Floating **Craft Concierge** → ask for a ceramic mug → product cards with DB prices  
+2. Vendor → **New product** → Generate listing from notes → edit before save  
+3. Admin reindex reports embeddings ≈ active products  
+
+See [docs/15-ai-features.md](./docs/15-ai-features.md).
 
 ## Roadmap
 

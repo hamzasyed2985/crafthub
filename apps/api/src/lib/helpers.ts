@@ -13,7 +13,8 @@ export function parsePagination(query: {
   limit?: unknown;
 }): { page: number; limit: number; skip: number } {
   const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.min(50, Math.max(1, Number(query.limit) || 20));
+  // Default page size 24; hard cap 100 so list endpoints stay safe at scale.
+  const limit = Math.min(100, Math.max(1, Number(query.limit) || 24));
   return { page, limit, skip: (page - 1) * limit };
 }
 

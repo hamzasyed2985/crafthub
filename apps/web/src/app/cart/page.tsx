@@ -2,33 +2,42 @@
 
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { useCart } from '@/components/cart-provider';
 
 export default function CartPage() {
   const { cart, loading, error, setItemQty, removeItem, empty } = useCart();
 
   if (loading && !cart) {
-    return <p className="px-6 py-12 text-subtle">Loading cart…</p>;
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading cart…</p>
+      </Page>
+    );
   }
 
   if (error) {
-    return <p className="px-6 py-12 text-danger">{error}</p>;
+    return (
+      <Page size="reading">
+        <p className="text-danger">{error}</p>
+      </Page>
+    );
   }
 
   if (!cart || cart.itemCount === 0) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+      <Page size="reading" y="lg" className="text-center">
         <h1 className="font-display text-3xl">Your cart</h1>
         <p className="mt-3 text-muted">Nothing here yet.</p>
         <Link href="/explore" className="mt-6 inline-block">
           <Button>Explore makers</Button>
         </Link>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <Page size="reading">
       <div className="flex items-center justify-between gap-4">
         <h1 className="font-display text-3xl">Your cart</h1>
         <Button variant="ghost" size="sm" onClick={() => void empty()}>
@@ -141,6 +150,6 @@ export default function CartPage() {
           <Button className="mt-4 w-full">Checkout</Button>
         </Link>
       </div>
-    </div>
+    </Page>
   );
 }

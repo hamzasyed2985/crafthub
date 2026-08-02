@@ -15,6 +15,7 @@ import { adminFinanceRouter } from './modules/admin/finance.js';
 import { cartRouter } from './modules/cart/routes.js';
 import { checkoutRouter } from './modules/checkout/routes.js';
 import { ordersRouter } from './modules/orders/routes.js';
+import { aiRouter } from './modules/ai/routes.js';
 
 export const router = Router();
 
@@ -38,6 +39,7 @@ router.use('/api/v1/orders', ordersRouter);
 router.use('/api/v1', catalogRouter);
 router.use('/api/v1', searchRouter);
 router.use('/api/v1', reviewsRouter);
+router.use('/api/v1/ai', aiRouter);
 router.use('/api/v1/vendor', vendorRouter);
 router.use('/api/v1/vendor/products', vendorProductsRouter);
 router.use('/api/v1/vendor/stripe', vendorStripeRouter);

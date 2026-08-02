@@ -1,9 +1,16 @@
 import { Suspense } from 'react';
+import { Page } from '@/components/page';
 import CheckoutSuccessPage from './success-client';
 
-export default function Page() {
+export default function CheckoutSuccessRoute() {
   return (
-    <Suspense fallback={<p className="px-6 py-12 text-subtle">Loading…</p>}>
+    <Suspense
+      fallback={
+        <Page size="narrow">
+          <p className="text-subtle">Loading…</p>
+        </Page>
+      }
+    >
       <CheckoutSuccessPage />
     </Suspense>
   );

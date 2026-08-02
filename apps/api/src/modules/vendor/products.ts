@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { prisma } from '@crafthub/db';
 import { addMediaSchema, createProductSchema, updateProductSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
-import { routeParam, slugify } from '../../lib/helpers.js';
+import { parsePagination, routeParam, slugify } from '../../lib/helpers.js';
 import { productInclude, serializeProduct } from '../../lib/serializers.js';
+import { enqueueProductEmbedding } from '../../lib/queue.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireVendor, type VendorRequest } from '../../middleware/vendor.js';
+import { upsertProductEmbedding } from '../ai/reindex.js';
 
 export const vendorProductsRouter = Router({ mergeParams: true });
 
@@ -13,12 +15,36 @@ vendorProductsRouter.use(requireAuth, requireVendor({ requireApproved: true }));
 
 vendorProductsRouter.get('/', async (req: VendorRequest, res, next) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { shopId: req.shopId },
-      include: productInclude,
-      orderBy: { updatedAt: 'desc' },
+    const { page, limit, skip } = parsePagination(req.query);
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const where = {
+      shopId: req.shopId,
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: 'insensitive' as const } },
+              { slug: { contains: q, mode: 'insensitive' as const } },
+              { description: { contains: q, mode: 'insensitive' as const } },
+              { variants: { some: { sku: { contains: q, mode: 'insensitive' as const } } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: productInclude,
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+    res.json({
+      data: products.map((p) => serializeProduct(p)),
+      meta: { total, page, limit, q },
     });
-    res.json({ data: products.map((p) => serializeProduct(p)) });
   } catch (err) {
     next(err);
   }
@@ -68,6 +94,9 @@ vendorProductsRouter.post('/', async (req: VendorRequest, res, next) => {
       },
       include: productInclude,
     });
+
+    void enqueueProductEmbedding(product.id);
+    void upsertProductEmbedding(product.id).catch(() => undefined);
 
     res.status(201).json({ data: { product: serializeProduct(product) } });
   } catch (err) {
@@ -134,6 +163,9 @@ vendorProductsRouter.patch('/:id', async (req: VendorRequest, res, next) => {
       });
     });
 
+    void enqueueProductEmbedding(product.id);
+    void upsertProductEmbedding(product.id).catch(() => undefined);
+
     res.json({ data: { product: serializeProduct(product) } });
   } catch (err) {
     next(err);
@@ -170,13 +202,20 @@ vendorProductsRouter.post('/:id/media', async (req: VendorRequest, res, next) =>
     });
     if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
 
+    const maxSort = await prisma.media.aggregate({
+      where: { productId: product.id },
+      _max: { sortOrder: true },
+    });
+    const sortOrder =
+      input.sortOrder !== undefined ? input.sortOrder : (maxSort._max.sortOrder ?? -1) + 1;
+
     const media = await prisma.media.create({
       data: {
         productId: product.id,
         url: input.url,
         storageKey: `external:${Buffer.from(input.url).toString('base64url').slice(0, 120)}`,
         alt: input.alt,
-        sortOrder: input.sortOrder,
+        sortOrder,
       },
     });
 
@@ -190,6 +229,27 @@ vendorProductsRouter.post('/:id/media', async (req: VendorRequest, res, next) =>
         },
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+vendorProductsRouter.delete('/:id/media/:mediaId', async (req: VendorRequest, res, next) => {
+  try {
+    const id = routeParam(req.params.id);
+    const mediaId = routeParam(req.params.mediaId);
+    const product = await prisma.product.findFirst({
+      where: { id, shopId: req.shopId },
+    });
+    if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
+
+    const media = await prisma.media.findFirst({
+      where: { id: mediaId, productId: product.id },
+    });
+    if (!media) throw new AppError(404, 'NOT_FOUND', 'Media not found');
+
+    await prisma.media.delete({ where: { id: media.id } });
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

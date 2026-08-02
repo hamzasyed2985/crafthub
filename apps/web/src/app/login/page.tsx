@@ -1,18 +1,33 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button, Input } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { login } from '@/lib/api';
+import { useAuth } from '@/components/auth-provider';
 
-export default function LoginPage() {
+function safeNextPath(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/login')) {
+    return '/account';
+  }
+  return raw;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const sessionExpired = searchParams.get('reason') === 'session_expired';
+  const sellIntent = searchParams.get('reason') === 'sell';
+  const nextPath = safeNextPath(searchParams.get('next'));
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -20,7 +35,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login({ email, password });
-      router.push('/account');
+      await refresh();
+      router.push(nextPath);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -29,9 +46,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto mt-12 max-w-[420px] px-6">
+    <Page size="narrow" y="none" className="mt-12">
       <h1 className="mb-1 font-display text-3xl">Log in</h1>
       <p className="mb-6 mt-0 text-muted">Welcome back to CraftHub.</p>
+
+      {sessionExpired ? (
+        <p className="mb-4 rounded-md border border-border bg-accent-muted/40 px-3 py-2 text-sm text-foreground">
+          Your session expired. Please log in again to continue.
+        </p>
+      ) : null}
+
+      {sellIntent ? (
+        <p className="mb-4 rounded-md border border-border bg-accent-muted/40 px-3 py-2 text-sm text-foreground">
+          Log in to apply as a maker. New here? Create an account first, then you’ll continue to the
+          application.
+        </p>
+      ) : null}
+
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <Input
           label="Email"
@@ -57,8 +88,31 @@ export default function LoginPage() {
         </Button>
       </form>
       <p className="mt-5 text-subtle">
-        New here? <Link href="/register">Create an account</Link>
+        New here?{' '}
+        <Link
+          href={
+            nextPath !== '/account'
+              ? `/register?next=${encodeURIComponent(nextPath)}`
+              : '/register'
+          }
+        >
+          Create an account
+        </Link>
       </p>
-    </div>
+    </Page>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <Page size="narrow" y="none" className="mt-12">
+          <p className="text-subtle">Loading…</p>
+        </Page>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

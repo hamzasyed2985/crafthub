@@ -4,6 +4,7 @@ import { Worker, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import pino from 'pino';
 import { prisma } from '@crafthub/db';
+import { reindexAllActiveProducts, upsertProductEmbedding } from './embeddings.js';
 
 config({ path: resolve(process.cwd(), '../../.env') });
 config();
@@ -12,6 +13,7 @@ const logger = pino({ level: process.env.NODE_ENV === 'production' ? 'info' : 'd
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const RESERVATION_QUEUE = 'reservations';
 const EMAIL_QUEUE = 'emails';
+const EMBEDDING_QUEUE = 'embeddings';
 
 async function cancelPendingOrder(orderId: string, reason: string) {
   await prisma.$transaction(async (tx) => {
@@ -115,6 +117,27 @@ async function main() {
     logger.error({ err, jobId: job?.id }, 'Email job failed');
   });
 
+  const embeddingWorker = new Worker(
+    EMBEDDING_QUEUE,
+    async (job) => {
+      if (job.name === 'embed-product') {
+        const productId = job.data.productId as string;
+        const ok = await upsertProductEmbedding(productId);
+        logger.info({ productId, ok }, 'Product embedding upserted');
+        return;
+      }
+      if (job.name === 'embed-all') {
+        const indexed = await reindexAllActiveProducts();
+        logger.info({ indexed }, 'Catalog embedding reindex complete');
+      }
+    },
+    { connection },
+  );
+
+  embeddingWorker.on('failed', (job, err) => {
+    logger.error({ err, jobId: job?.id }, 'Embedding job failed');
+  });
+
   const queue = new Queue(RESERVATION_QUEUE, { connection });
   await queue.add(
     'sweep',
@@ -129,7 +152,7 @@ async function main() {
   try {
     await redis.connect();
     await redis.ping();
-    logger.info({ redisUrl }, 'CraftHub worker ready (reservations + emails)');
+    logger.info({ redisUrl }, 'CraftHub worker ready (reservations + emails + embeddings)');
   } catch (err) {
     logger.warn({ err }, 'Redis not reachable — worker may idle until Redis is up');
   } finally {

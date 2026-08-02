@@ -71,6 +71,7 @@ catalogRouter.get('/shops', async (req, res, next) => {
 catalogRouter.get('/shops/:slug', async (req, res, next) => {
   try {
     const slug = routeParam(req.params.slug, 'slug');
+    const { page, limit, skip } = parsePagination(req.query);
     const vendor = await prisma.vendorProfile.findFirst({
       where: { slug, status: 'approved' },
       include: { shop: true, stripeAccount: true },
@@ -79,11 +80,17 @@ catalogRouter.get('/shops/:slug', async (req, res, next) => {
       throw new AppError(404, 'NOT_FOUND', 'Shop not found');
     }
 
-    const products = await prisma.product.findMany({
-      where: { shopId: vendor.shop.id, status: 'active' },
-      include: productInclude,
-      orderBy: { updatedAt: 'desc' },
-    });
+    const productWhere = { shopId: vendor.shop.id, status: 'active' as const };
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where: productWhere }),
+      prisma.product.findMany({
+        where: productWhere,
+        include: productInclude,
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
 
     res.json({
       data: {
@@ -103,6 +110,42 @@ catalogRouter.get('/shops/:slug', async (req, res, next) => {
         },
         products: products.map((p) => serializeProduct(p)),
       },
+      meta: { total, page, limit },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+catalogRouter.get('/shops/:slug/products/:productSlug', async (req, res, next) => {
+  try {
+    const slug = routeParam(req.params.slug, 'slug');
+    const productSlug = routeParam(req.params.productSlug, 'productSlug');
+    const vendor = await prisma.vendorProfile.findFirst({
+      where: { slug, status: 'approved' },
+      include: { shop: true },
+    });
+    if (!vendor?.shop) throw new AppError(404, 'NOT_FOUND', 'Shop not found');
+
+    const product = await prisma.product.findFirst({
+      where: {
+        shopId: vendor.shop.id,
+        slug: productSlug,
+        status: 'active',
+      },
+      include: productInclude,
+    });
+    if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
+
+    res.json({
+      data: {
+        shop: {
+          displayName: vendor.displayName,
+          slug: vendor.slug,
+          flatShippingCents: vendor.shop.flatShippingCents,
+        },
+        product: serializeProduct(product),
+      },
     });
   } catch (err) {
     next(err);
@@ -117,6 +160,14 @@ catalogRouter.get('/products', async (req, res, next) => {
     const shopSlug = typeof req.query.shop === 'string' ? req.query.shop.trim() : '';
     const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
     const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
+    const sortRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : 'newest';
+    const sort =
+      sortRaw === 'price_asc' ||
+      sortRaw === 'price_desc' ||
+      sortRaw === 'title' ||
+      sortRaw === 'newest'
+        ? sortRaw
+        : 'newest';
 
     const where = {
       status: 'active' as const,
@@ -126,9 +177,7 @@ catalogRouter.get('/products', async (req, res, next) => {
           ...(shopSlug ? { slug: shopSlug } : {}),
         },
       },
-      ...(category
-        ? { category: { slug: category } }
-        : {}),
+      ...(category ? { category: { slug: category } } : {}),
       ...(q
         ? {
             OR: [
@@ -161,20 +210,53 @@ catalogRouter.get('/products', async (req, res, next) => {
         : {}),
     };
 
-    const [total, products] = await Promise.all([
-      prisma.product.count({ where }),
-      prisma.product.findMany({
+    const total = await prisma.product.count({ where });
+
+    let products;
+    if (sort === 'price_asc' || sort === 'price_desc') {
+      // Fetch page candidates then sort by lowest variant price (catalog size is modest).
+      const all = await prisma.product.findMany({
         where,
         include: productInclude,
-        orderBy: { updatedAt: 'desc' },
+      });
+      const dir = sort === 'price_asc' ? 1 : -1;
+      all.sort((a, b) => {
+        const pa = a.variants.reduce(
+          (min, v) => Math.min(min, v.priceCents),
+          Number.POSITIVE_INFINITY,
+        );
+        const pb = b.variants.reduce(
+          (min, v) => Math.min(min, v.priceCents),
+          Number.POSITIVE_INFINITY,
+        );
+        const sa = Number.isFinite(pa) ? pa : 0;
+        const sb = Number.isFinite(pb) ? pb : 0;
+        return (sa - sb) * dir;
+      });
+      products = all.slice(skip, skip + limit);
+    } else {
+      products = await prisma.product.findMany({
+        where,
+        include: productInclude,
+        orderBy: sort === 'title' ? { title: 'asc' } : { updatedAt: 'desc' },
         skip,
         take: limit,
-      }),
-    ]);
+      });
+    }
 
     res.json({
       data: products.map((p) => serializeProduct(p)),
-      meta: { total, page, limit },
+      meta: {
+        total,
+        page,
+        limit,
+        q,
+        category,
+        shop: shopSlug,
+        minPrice: minPrice !== undefined && !Number.isNaN(minPrice) ? minPrice : undefined,
+        maxPrice: maxPrice !== undefined && !Number.isNaN(maxPrice) ? maxPrice : undefined,
+        sort,
+      },
     });
   } catch (err) {
     next(err);

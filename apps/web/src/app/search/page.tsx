@@ -4,21 +4,34 @@ import { useEffect, useState, Suspense, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductCard } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { PaginationControls } from '@/components/pagination-controls';
 import { searchCatalog, type ProductDto, type VendorSummary } from '@/lib/api';
 
 function SearchClient() {
   const router = useRouter();
   const params = useSearchParams();
   const initial = params.get('q') ?? '';
+  const initialPage = Math.max(1, Number(params.get('page')) || 1);
   const [q, setQ] = useState(initial);
+  const [page, setPage] = useState(initialPage);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [shops, setShops] = useState<VendorSummary[]>([]);
-  const [meta, setMeta] = useState<{ totalProducts: number; totalShops: number } | null>(null);
+  const [meta, setMeta] = useState<{
+    totalProducts: number;
+    totalShops: number;
+    page: number;
+    limit: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setQ(initial);
+    setPage(initialPage);
+  }, [initial, initialPage]);
+
+  useEffect(() => {
     if (!initial.trim()) {
       setProducts([]);
       setShops([]);
@@ -26,16 +39,21 @@ function SearchClient() {
       return;
     }
     setLoading(true);
-    searchCatalog(initial)
+    searchCatalog(initial, page, 24)
       .then((res) => {
         setProducts(res.products);
         setShops(res.shops);
-        setMeta({ totalProducts: res.meta.totalProducts, totalShops: res.meta.totalShops });
+        setMeta({
+          totalProducts: res.meta.totalProducts,
+          totalShops: res.meta.totalShops,
+          page: res.meta.page,
+          limit: res.meta.limit,
+        });
         setError(null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Search failed'))
       .finally(() => setLoading(false));
-  }, [initial]);
+  }, [initial, page]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -43,8 +61,13 @@ function SearchClient() {
     router.push(next ? `/search?q=${encodeURIComponent(next)}` : '/search');
   }
 
+  function onPageChange(next: number) {
+    setPage(next);
+    router.replace(`/search?q=${encodeURIComponent(initial)}&page=${next}`, { scroll: false });
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <Page size="wide" y="sm">
       <h1 className="font-display text-3xl">Search</h1>
       <p className="mt-1 text-muted">Find products and makers across CraftHub.</p>
 
@@ -113,19 +136,33 @@ function SearchClient() {
               );
             })}
           </div>
+          {meta ? (
+            <PaginationControls
+              page={meta.page}
+              limit={meta.limit}
+              total={meta.totalProducts}
+              onPageChange={onPageChange}
+            />
+          ) : null}
         </section>
       ) : null}
 
       {!loading && initial && products.length === 0 && shops.length === 0 ? (
         <p className="mt-10 text-muted">No results. Try another craft or city.</p>
       ) : null}
-    </div>
+    </Page>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<p className="px-6 py-12 text-subtle">Loading search…</p>}>
+    <Suspense
+      fallback={
+        <Page size="wide">
+          <p className="text-subtle">Loading search…</p>
+        </Page>
+      }
+    >
       <SearchClient />
     </Suspense>
   );

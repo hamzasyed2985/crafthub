@@ -3,13 +3,18 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button, Input } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { CitySelect, CountrySelect } from '@/components/country-city-fields';
 import { fetchVendorMe, updateVendorShop } from '@/lib/api';
+import { countryForCity } from '@/lib/locations';
 
 export default function VendorShopPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [country, setCountry] = useState('PK');
+  const [shipsCountry, setShipsCountry] = useState('PK');
   const [form, setForm] = useState({
     displayName: '',
     bio: '',
@@ -26,16 +31,20 @@ export default function VendorShopPage() {
     fetchVendorMe()
       .then((v) => {
         const shop = (v.shop ?? {}) as Record<string, unknown>;
+        const city = String(v.city ?? '');
+        const shipsFromCity = String(shop.shipsFromCity ?? '');
+        setCountry(countryForCity(city));
+        setShipsCountry(countryForCity(shipsFromCity || city));
         setForm({
           displayName: String(v.displayName ?? ''),
           bio: String(v.bio ?? ''),
-          city: String(v.city ?? ''),
+          city,
           logoUrl: String(v.logoUrl ?? ''),
           bannerUrl: String(v.bannerUrl ?? ''),
           shippingPolicy: String(shop.shippingPolicy ?? ''),
           returnsPolicy: String(shop.returnsPolicy ?? ''),
           flatShippingCents: String(shop.flatShippingCents ?? 500),
-          shipsFromCity: String(shop.shipsFromCity ?? ''),
+          shipsFromCity,
         });
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed'))
@@ -67,10 +76,15 @@ export default function VendorShopPage() {
     }
   }
 
-  if (loading) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (loading)
+    return (
+      <Page size="narrow">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-12">
+    <Page size="narrow">
       <h1 className="font-display text-3xl">Shop settings</h1>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
         <Input
@@ -78,10 +92,18 @@ export default function VendorShopPage() {
           value={form.displayName}
           onChange={(e) => setForm({ ...form, displayName: e.target.value })}
         />
-        <Input
-          label="City"
+        <CountrySelect
+          value={country}
+          onChange={(code) => {
+            setCountry(code);
+            setForm((f) => ({ ...f, city: '' }));
+          }}
+        />
+        <CitySelect
+          countryCode={country}
           value={form.city}
-          onChange={(e) => setForm({ ...form, city: e.target.value })}
+          extraOptions={form.city ? [form.city] : []}
+          onChange={(city) => setForm({ ...form, city })}
         />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold">Bio</span>
@@ -101,10 +123,22 @@ export default function VendorShopPage() {
           value={form.bannerUrl}
           onChange={(e) => setForm({ ...form, bannerUrl: e.target.value })}
         />
-        <Input
+        <CountrySelect
+          id="ships-country"
+          label="Ships from country"
+          value={shipsCountry}
+          onChange={(code) => {
+            setShipsCountry(code);
+            setForm((f) => ({ ...f, shipsFromCity: '' }));
+          }}
+        />
+        <CitySelect
+          id="ships-city"
           label="Ships from city"
+          countryCode={shipsCountry}
           value={form.shipsFromCity}
-          onChange={(e) => setForm({ ...form, shipsFromCity: e.target.value })}
+          extraOptions={form.shipsFromCity ? [form.shipsFromCity] : []}
+          onChange={(shipsFromCity) => setForm({ ...form, shipsFromCity })}
         />
         <Input
           label="Flat shipping (cents)"
@@ -134,6 +168,6 @@ export default function VendorShopPage() {
           Save
         </Button>
       </form>
-    </div>
+    </Page>
   );
 }

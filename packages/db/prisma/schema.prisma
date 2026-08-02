@@ -86,6 +86,7 @@ model User {
   addresses      Address[]
   orders         Order[]
   reviews        Review[]
+  aiGenerations  AiGeneration[]
 
   @@map("users")
 }
@@ -200,6 +201,7 @@ model Product {
   variants ProductVariant[]
   media    Media[]
   reviews  Review[]
+  embedding ProductEmbedding?
 
   @@unique([shopId, slug])
   @@index([status])
@@ -507,4 +509,33 @@ model EmailOutbox {
   @@index([status])
   @@index([template])
   @@map("email_outbox")
+}
+
+/** Phase 6.5 — product text embeddings (JSON float[]; cosine in app; pgvector optional later). */
+model ProductEmbedding {
+  productId   String   @id @map("product_id") @db.Uuid
+  vector      Json
+  model       String   @default("mock-bow-v1")
+  contentHash String   @map("content_hash")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([model])
+  @@map("product_embeddings")
+}
+
+model AiGeneration {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  kind       String
+  promptMeta Json     @default("{}") @map("prompt_meta")
+  output     Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([kind])
+  @@map("ai_generations")
 }

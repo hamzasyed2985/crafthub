@@ -2,10 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@crafthub/ui';
+import { useAuth } from '@/components/auth-provider';
 import {
   createProductReview,
   fetchProductReviews,
-  readAccessToken,
   type ReviewDto,
 } from '@/lib/api';
 
@@ -16,6 +16,7 @@ export function ProductReviews({
   productId: string;
   canReview?: boolean;
 }) {
+  const { user, loading: authLoading } = useAuth();
   const [reviews, setReviews] = useState<ReviewDto[]>([]);
   const [avg, setAvg] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +24,8 @@ export function ProductReviews({
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const loggedIn = Boolean(readAccessToken());
+  // Wait for auth before showing the form so SSR and first client render match.
+  const showReviewForm = canReview && !authLoading && Boolean(user);
 
   async function load() {
     try {
@@ -79,7 +81,7 @@ export function ProductReviews({
         ))}
       </ul>
 
-      {canReview && loggedIn ? (
+      {showReviewForm ? (
         <form onSubmit={(e) => void onSubmit(e)} className="mt-8 space-y-3">
           <h3 className="font-display text-xl">Write a review</h3>
           <label className="block text-sm text-subtle">

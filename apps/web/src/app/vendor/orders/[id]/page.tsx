@@ -4,12 +4,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import {
   fetchVendorOrder,
   fulfillVendorOrder,
   shipVendorOrder,
   type VendorOrderDto,
 } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function VendorOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -64,28 +66,27 @@ export default function VendorOrderDetailPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-12">
+      <Page size="reading">
         <p className="text-danger">{error}</p>
-        <Link href="/vendor/orders" className="text-accent">
-          ← Orders
-        </Link>
-      </div>
+      </Page>
     );
   }
 
-  if (!order) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (!order)
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
 
   const canFulfill = order.status === 'paid';
   const canShip = order.status === 'paid' || order.status === 'fulfilling';
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
-      <Link href="/vendor/orders" className="text-sm text-accent">
-        ← Orders
-      </Link>
-      <h1 className="mt-4 font-display text-3xl">Order slice</h1>
+    <Page size="reading">
+      <h1 className="font-display text-3xl">Order</h1>
       <p className="mt-2 text-muted">
-        Status <strong>{order.status}</strong> · Net <Price cents={order.vendorNetCents} />
+        Status <strong>{formatStatusLabel(order.status)}</strong> · Net <Price cents={order.vendorNetCents} />
       </p>
 
       <section className="mt-8">
@@ -192,6 +193,6 @@ export default function VendorOrderDetailPage() {
           ) : null}
         </section>
       )}
-    </div>
+    </Page>
   );
 }

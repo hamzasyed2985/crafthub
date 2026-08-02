@@ -3,10 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { PaginationControls } from '@/components/pagination-controls';
 import { fetchOrders, readAccessToken, type OrderDto } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function AccountOrdersPage() {
   const [orders, setOrders] = useState<OrderDto[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(24);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -14,26 +20,35 @@ export default function AccountOrdersPage() {
       setError('Please log in');
       return;
     }
-    fetchOrders()
-      .then(setOrders)
+    fetchOrders(page, 24)
+      .then((res) => {
+        setOrders(res.data);
+        setTotal(res.meta.total);
+        setLimit(res.meta.limit);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
-  }, []);
+  }, [page]);
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-12">
+      <Page size="reading">
         <p className="text-danger">{error}</p>
         <Link href="/login" className="text-accent">
           Log in
         </Link>
-      </div>
+      </Page>
     );
   }
 
-  if (!orders) return <p className="px-6 py-12 text-subtle">Loading orders…</p>;
+  if (!orders)
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading orders…</p>
+      </Page>
+    );
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <Page size="reading">
       <h1 className="font-display text-3xl">Your orders</h1>
       {orders.length === 0 ? (
         <p className="mt-4 text-muted">No orders yet.</p>
@@ -42,7 +57,7 @@ export default function AccountOrdersPage() {
           {orders.map((o) => (
             <li key={o.id} className="border-b border-border pb-4">
               <Link href={`/account/orders/${o.id}`} className="font-semibold hover:text-accent">
-                Order {o.id.slice(0, 8)}… · {o.status}
+                Order {o.id.slice(0, 8)}… · {formatStatusLabel(o.status)}
               </Link>
               <p className="text-sm text-muted">
                 {new Date(o.createdAt).toLocaleString()} · <Price cents={o.totalCents} />
@@ -51,6 +66,7 @@ export default function AccountOrdersPage() {
           ))}
         </ul>
       )}
-    </div>
+      <PaginationControls page={page} limit={limit} total={total} onPageChange={setPage} />
+    </Page>
   );
 }

@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { useCart } from '@/components/cart-provider';
+import { CitySelect, CountrySelect } from '@/components/country-city-fields';
 import { createCheckoutSession, fetchMe, readAccessToken } from '@/lib/api';
 
 export default function CheckoutPage() {
@@ -20,7 +22,7 @@ export default function CheckoutPage() {
     city: '',
     region: '',
     postalCode: '',
-    country: 'US',
+    country: 'PK',
   });
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function CheckoutPage() {
 
   if (authed === false) {
     return (
-      <div className="mx-auto max-w-lg px-6 py-16 text-center">
+      <Page size="narrow" y="lg" className="text-center">
         <h1 className="font-display text-3xl">Sign in to checkout</h1>
         <p className="mt-3 text-muted">Checkout requires an account so we can attach your order.</p>
         <div className="mt-6 flex justify-center gap-3">
@@ -77,27 +79,31 @@ export default function CheckoutPage() {
             <Button variant="secondary">Create account</Button>
           </Link>
         </div>
-      </div>
+      </Page>
     );
   }
 
   if (authed === null || (loading && !cart)) {
-    return <p className="px-6 py-12 text-subtle">Loading checkout…</p>;
+    return (
+      <Page size="default">
+        <p className="text-subtle">Loading checkout…</p>
+      </Page>
+    );
   }
 
   if (!cart || cart.itemCount === 0) {
     return (
-      <div className="mx-auto max-w-lg px-6 py-16 text-center">
+      <Page size="narrow" y="lg" className="text-center">
         <h1 className="font-display text-3xl">Nothing to checkout</h1>
         <Link href="/explore" className="mt-6 inline-block text-accent">
           Explore makers
         </Link>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-10 px-6 py-12 lg:grid-cols-2">
+    <Page size="default" className="grid gap-10 lg:grid-cols-2">
       <div>
         <h1 className="font-display text-3xl">Checkout</h1>
         <p className="mt-2 text-muted">Shipping address for this order.</p>
@@ -120,30 +126,29 @@ export default function CheckoutPage() {
             onChange={(e) => setForm({ ...form, line2: e.target.value })}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="City"
+            <CountrySelect
+              value={form.country}
               required
-              value={form.city}
-              onChange={(e) => setForm({ ...form, city: e.target.value })}
+              onChange={(country) => setForm({ ...form, country, city: '' })}
             />
+            <CitySelect
+              countryCode={form.country}
+              value={form.city}
+              required
+              onChange={(city) => setForm({ ...form, city })}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               label="Region / state"
               value={form.region}
               onChange={(e) => setForm({ ...form, region: e.target.value })}
             />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               label="Postal code"
               required
               value={form.postalCode}
               onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-            />
-            <Input
-              label="Country"
-              required
-              value={form.country}
-              onChange={(e) => setForm({ ...form, country: e.target.value.toUpperCase() })}
             />
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -196,6 +201,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       </aside>
-    </div>
+    </Page>
   );
 }

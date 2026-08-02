@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { PaginationControls } from '@/components/pagination-controls';
 import { fetchVendorOrders, type VendorOrderDto } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -14,57 +17,67 @@ const FILTERS = [
 ] as const;
 
 export default function VendorOrdersClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const status = searchParams.get('status') ?? '';
   const [orders, setOrders] = useState<VendorOrderDto[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(24);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setOrders(null);
-    fetchVendorOrders(status || undefined)
-      .then(setOrders)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
+    setPage(1);
   }, [status]);
+
+  useEffect(() => {
+    setOrders(null);
+    fetchVendorOrders(status || undefined, page, 24)
+      .then((res) => {
+        setOrders(res.data);
+        setTotal(res.meta.total);
+        setLimit(res.meta.limit);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
+  }, [status, page]);
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <Page size="reading">
         <p className="text-danger">{error}</p>
-        <Link href="/vendor" className="text-accent">
-          Dashboard
-        </Link>
-      </div>
+      </Page>
     );
   }
 
-  if (!orders) return <p className="px-6 py-12 text-subtle">Loading orders…</p>;
+  if (!orders)
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading orders…</p>
+      </Page>
+    );
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl">Orders</h1>
-        <Link href="/vendor" className="text-sm text-accent">
-          Dashboard
-        </Link>
-      </div>
+    <Page size="reading">
+      <h1 className="font-display text-3xl">Orders</h1>
       <p className="mt-2 text-muted">Paid orders appear after Stripe webhook confirmation.</p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => {
-          const href = f.key ? `/vendor/orders?status=${f.key}` : '/vendor/orders';
           const active = status === f.key;
           return (
-            <Link
+            <button
               key={f.key || 'all'}
-              href={href}
-              className={`rounded-md px-3 py-1.5 text-sm ${
-                active
-                  ? 'bg-ink text-canvas'
-                  : 'border border-border text-muted hover:border-ink'
+              type="button"
+              onClick={() => {
+                setPage(1);
+                router.push(f.key ? `/vendor/orders?status=${f.key}` : '/vendor/orders');
+              }}
+              className={`rounded-md border px-3 py-1.5 text-sm ${
+                active ? 'border-accent bg-accent-muted' : 'border-border'
               }`}
             >
               {f.label}
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -72,16 +85,13 @@ export default function VendorOrdersClient() {
       {orders.length === 0 ? (
         <p className="mt-8 text-subtle">No orders yet.</p>
       ) : (
-        <ul className="mt-8 space-y-4">
+        <ul className="mt-8 divide-y divide-border">
           {orders.map((vo) => (
-            <li key={vo.id}>
-              <Link
-                href={`/vendor/orders/${vo.id}`}
-                className="block rounded-md border border-border bg-elevated p-4 hover:border-ink"
-              >
+            <li key={vo.id} className="py-4">
+              <Link href={`/vendor/orders/${vo.id}`} className="block hover:text-accent">
                 <div className="flex flex-wrap justify-between gap-2">
                   <p className="font-semibold">
-                    {vo.status} · {vo.order.shipName} ({vo.order.shipCity})
+                    {formatStatusLabel(vo.status)} · {vo.order.shipName} ({vo.order.shipCity})
                   </p>
                   <p>
                     Net <Price cents={vo.vendorNetCents} />
@@ -103,6 +113,7 @@ export default function VendorOrdersClient() {
           ))}
         </ul>
       )}
-    </div>
+      <PaginationControls page={page} limit={limit} total={total} onPageChange={setPage} />
+    </Page>
   );
 }

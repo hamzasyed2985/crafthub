@@ -2,22 +2,22 @@
 
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Input } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { useAuth } from '@/components/auth-provider';
+import { CitySelect, CountrySelect } from '@/components/country-city-fields';
+import { SlugFromNameFields } from '@/components/slug-from-name-fields';
 import { applyVendor } from '@/lib/api';
-
-function toSlug(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 export default function VendorApplyPage() {
   const router = useRouter();
+  const { user, loading: authLoading, refresh } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [slug, setSlug] = useState('');
+  const [slugManual, setSlugManual] = useState(false);
+  const [country, setCountry] = useState('PK');
   const [city, setCity] = useState('');
   const [bio, setBio] = useState('');
   const [craftTags, setCraftTags] = useState('pottery');
@@ -31,21 +31,35 @@ export default function VendorApplyPage() {
       setError('Confirm you make what you sell.');
       return;
     }
+    if (displayName.trim().length < 2) {
+      setError('Shop name must be at least 2 characters.');
+      return;
+    }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      setError('Shop slug must be lowercase letters, numbers, and hyphens (e.g. clay-studio).');
+      return;
+    }
+    if (!city.trim()) {
+      setError('City is required.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       await applyVendor({
-        displayName,
-        slug: slug || toSlug(displayName),
-        city,
-        bio: bio || undefined,
+        displayName: displayName.trim(),
+        slug: slug.trim(),
+        city: city.trim(),
+        bio: bio.trim() || undefined,
         craftTags: craftTags
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean),
         attestation: true,
       });
+      await refresh();
       router.push('/vendor/onboarding');
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Apply failed');
     } finally {
@@ -53,30 +67,73 @@ export default function VendorApplyPage() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <Page size="narrow">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Page size="narrow">
+        <h1 className="font-display text-3xl">Sell on CraftHub</h1>
+        <p className="mt-2 text-muted">You need an account before you can apply as a maker.</p>
+        <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
+          Log in if you already shop here, or create an account, then submit your shop application.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/login?reason=sell&next=/vendor/apply">
+            <Button>Log in to apply</Button>
+          </Link>
+          <Link href="/register?next=/vendor/apply">
+            <Button variant="secondary">Create account</Button>
+          </Link>
+        </div>
+      </Page>
+    );
+  }
+
+  if (user.role === 'vendor') {
+    return (
+      <Page size="narrow">
+        <h1 className="font-display text-3xl">Sell on CraftHub</h1>
+        <p className="mt-2 text-muted">You’re already a maker on this account.</p>
+        <Link href="/vendor" className="mt-6 inline-block text-accent">
+          Go to seller dashboard →
+        </Link>
+      </Page>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-lg px-6 py-12">
+    <Page size="narrow">
       <h1 className="font-display text-3xl">Sell on CraftHub</h1>
       <p className="mt-2 text-muted">
         Apply as a maker. An admin reviews your shop before it goes public.
       </p>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <Input
-          label="Shop name"
+        <SlugFromNameFields
+          sourceLabel="Shop name"
+          sourceValue={displayName}
+          onSourceChange={setDisplayName}
+          slug={slug}
+          onSlugChange={setSlug}
+          slugManual={slugManual}
+          onSlugManualChange={setSlugManual}
+          sourceRequired
+          slugHint="Used in /shops/your-slug"
+        />
+        <CountrySelect
+          value={country}
           required
-          value={displayName}
-          onChange={(e) => {
-            setDisplayName(e.target.value);
-            if (!slug) setSlug(toSlug(e.target.value));
+          onChange={(code) => {
+            setCountry(code);
+            setCity('');
           }}
         />
-        <Input
-          label="Shop slug"
-          hint="Used in /shops/your-slug"
-          required
-          value={slug}
-          onChange={(e) => setSlug(toSlug(e.target.value))}
-        />
-        <Input label="City" required value={city} onChange={(e) => setCity(e.target.value)} />
+        <CitySelect countryCode={country} value={city} required onChange={setCity} />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold">Bio</span>
           <textarea
@@ -105,6 +162,6 @@ export default function VendorApplyPage() {
           Submit application
         </Button>
       </form>
-    </div>
+    </Page>
   );
 }

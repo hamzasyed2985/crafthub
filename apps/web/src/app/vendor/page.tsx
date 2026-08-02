@@ -3,40 +3,85 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { SimplePieChart } from '@/components/simple-pie-chart';
 import {
   fetchVendorDashboard,
-  fetchVendorProducts,
-  type ProductDto,
+  fetchVendorEarnings,
   type VendorDashboardDto,
+  type VendorEarningsDto,
 } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
+import { pieColorAt, PIE_SEMANTIC } from '@/lib/pie-colors';
+
+const SECTIONS = [
+  {
+    href: '/vendor/orders',
+    title: 'Orders',
+    blurb: 'Fulfill, ship, and track buyer orders',
+  },
+  {
+    href: '/vendor/products',
+    title: 'Products',
+    blurb: 'View and edit all your listings',
+  },
+  {
+    href: '/vendor/earnings',
+    title: 'Earnings',
+    blurb: 'Sales, commission, payouts, and debt',
+  },
+  {
+    href: '/vendor/shop',
+    title: 'Shop',
+    blurb: 'Branding, shipping, and policies',
+  },
+  {
+    href: '/vendor/products/new',
+    title: 'New product',
+    blurb: 'Add a listing with photos and stock',
+  },
+  {
+    href: '/vendor/onboarding',
+    title: 'Onboarding',
+    blurb: 'Stripe Connect and go-live checklist',
+  },
+] as const;
+
+function formatCents(cents: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
 
 export default function VendorDashboardPage() {
   const [dash, setDash] = useState<VendorDashboardDto | null>(null);
-  const [products, setProducts] = useState<ProductDto[]>([]);
+  const [earnings, setEarnings] = useState<VendorEarningsDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetchVendorDashboard(),
-      fetchVendorProducts().catch(() => [] as ProductDto[]),
-    ])
-      .then(([d, p]) => {
+    Promise.all([fetchVendorDashboard(), fetchVendorEarnings().catch(() => null)])
+      .then(([d, e]) => {
         setDash(d);
-        setProducts(p);
+        setEarnings(e);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
   }, []);
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <Page size="default">
         <p>{error}</p>
-        <Link href="/vendor/apply">Apply to sell</Link>
-      </div>
+        <Link href="/vendor/apply" className="text-accent">
+          Apply to sell
+        </Link>
+      </Page>
     );
   }
 
-  if (!dash) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (!dash)
+    return (
+      <Page size="default">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
 
   const vendor = dash.vendor;
   const status = String(vendor.status);
@@ -45,19 +90,43 @@ export default function VendorDashboardPage() {
     | null
     | undefined;
   const stripeIncomplete =
-    status === 'approved' &&
-    (!stripe?.chargesEnabled || !stripe?.onboardingComplete);
-  const lowStock = products.filter(
-    (p) => (p.variants[0]?.stockQty ?? 0) < 3 && p.status === 'active',
-  );
+    status === 'approved' && (!stripe?.chargesEnabled || !stripe?.onboardingComplete);
+
+  const orderSlices = Object.entries(dash.ordersByStatus ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({
+      label: formatStatusLabel(label),
+      value,
+      color: pieColorAt(i),
+    }));
+
+  const moneySlices = earnings
+    ? [
+        { label: 'Your net', value: earnings.netCents, color: PIE_SEMANTIC.positive },
+        { label: 'Platform commission', value: earnings.commissionCents, color: PIE_SEMANTIC.accent },
+        { label: 'Shipping collected', value: earnings.shippingCents, color: PIE_SEMANTIC.muted },
+      ].filter((s) => s.value > 0)
+    : [];
+
+  const payoutSlices = earnings
+    ? [
+        { label: 'Paid out', value: earnings.paidOutCents, color: PIE_SEMANTIC.positive },
+        { label: 'Pending payout', value: earnings.pendingPayoutCents, color: PIE_SEMANTIC.caution },
+        {
+          label: 'Outstanding debt',
+          value: earnings.outstandingDebtCents ?? 0,
+          color: PIE_SEMANTIC.debt,
+        },
+      ].filter((s) => s.value > 0)
+    : [];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <Page size="default">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl">{String(vendor.displayName)}</h1>
-          <p className="text-muted">
-            Status: {status}
+          <h1 className="font-display text-3xl">Dashboard</h1>
+          <p className="mt-1 text-muted">
+            {String(vendor.displayName)} · {formatStatusLabel(status)}
             {status === 'approved' ? (
               <>
                 {' '}
@@ -69,46 +138,50 @@ export default function VendorDashboardPage() {
             ) : null}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/vendor/shop">
-            <Button variant="secondary" size="sm">
-              Edit shop
-            </Button>
-          </Link>
-          <Link href="/vendor/earnings">
-            <Button variant="secondary" size="sm">
-              Earnings
-            </Button>
-          </Link>
-          <Link href="/vendor/products/new">
-            <Button size="sm" disabled={status !== 'approved'}>
-              New product
-            </Button>
-          </Link>
-        </div>
+        <Link href="/vendor/products/new">
+          <Button size="sm" disabled={status !== 'approved'}>
+            New product
+          </Button>
+        </Link>
       </div>
 
       {status === 'pending' ? (
         <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
-          Your application is pending. You can edit branding after approval. See{' '}
+          Your application is pending. See{' '}
           <Link href="/vendor/onboarding" className="underline">
             onboarding
-          </Link>
-          .
+          </Link>{' '}
+          for next steps.
         </p>
       ) : null}
 
       {stripeIncomplete ? (
         <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
-          Stripe Connect is incomplete — buyers can&apos;t check out your products until you{' '}
+          Stripe Connect is incomplete —{' '}
           <Link href="/vendor/onboarding" className="underline">
             finish onboarding
-          </Link>
-          .
+          </Link>{' '}
+          so buyers can check out.
         </p>
       ) : null}
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">Sections</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {SECTIONS.map((s) => (
+            <Link
+              key={s.href}
+              href={s.href}
+              className="rounded-md border border-border bg-elevated p-4 transition-colors hover:border-border-strong hover:bg-background-subtle"
+            >
+              <p className="font-semibold text-foreground">{s.title}</p>
+              <p className="mt-1 text-sm text-muted">{s.blurb}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-md border border-border bg-elevated p-4">
           <p className="text-sm text-subtle">To fulfill</p>
           <p className="font-display text-3xl">
@@ -129,42 +202,88 @@ export default function VendorDashboardPage() {
             <Price cents={dash.net30dCents} />
           </p>
         </div>
-        <div className="rounded-md border border-border bg-elevated p-4">
+        <Link
+          href="/vendor/products"
+          className="rounded-md border border-border bg-elevated p-4 hover:border-border-strong"
+        >
           <p className="text-sm text-subtle">Products</p>
-          <p className="font-display text-3xl">{products.length}</p>
-          <p className="text-xs text-subtle">Low stock: {lowStock.length}</p>
+          <p className="font-display text-3xl">{dash.productCount ?? 0}</p>
+          <p className="text-xs text-subtle">Low stock: {dash.lowStockCount ?? 0}</p>
+        </Link>
+      </section>
+
+      <section className="mt-10">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="font-display text-2xl">Finance</h2>
+          <Link href="/vendor/earnings" className="text-sm text-accent">
+            Full earnings →
+          </Link>
         </div>
-      </div>
-
-      <div className="mt-6 flex gap-4 text-sm">
-        <Link href="/vendor/orders" className="text-accent">
-          All orders →
-        </Link>
-        <Link href="/vendor/earnings" className="text-accent">
-          Earnings →
-        </Link>
-      </div>
-
-      <h2 className="mt-12 font-display text-2xl">Products</h2>
-      <ul className="mt-4 divide-y divide-border">
-        {products.map((p) => (
-          <li key={p.id} className="flex items-center justify-between py-3">
-            <div>
-              <Link href={`/vendor/products/${p.id}`} className="font-semibold hover:text-accent">
-                {p.title}
-              </Link>
-              <p className="text-sm text-subtle">
-                {p.status} ·{' '}
-                {p.variants[0] ? `$${(p.variants[0].priceCents / 100).toFixed(2)}` : '—'}
-              </p>
+        {earnings ? (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div className="rounded-md border border-border p-4">
+                <p className="text-subtle">Gross sales</p>
+                <p className="font-display text-xl">
+                  <Price cents={earnings.grossSalesCents} />
+                </p>
+              </div>
+              <div className="rounded-md border border-border p-4">
+                <p className="text-subtle">Commission paid</p>
+                <p className="font-display text-xl">
+                  <Price cents={earnings.commissionCents} />
+                </p>
+              </div>
+              <div className="rounded-md border border-border p-4">
+                <p className="text-subtle">Your net</p>
+                <p className="font-display text-xl">
+                  <Price cents={earnings.netCents} />
+                </p>
+              </div>
+              <div className="rounded-md border border-border p-4">
+                <p className="text-subtle">Outstanding debt</p>
+                <p className="font-display text-xl">
+                  <Price cents={earnings.outstandingDebtCents ?? 0} />
+                </p>
+              </div>
             </div>
-            <Link href={`/vendor/products/${p.id}`} className="text-sm text-accent">
-              Edit
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {products.length === 0 ? <p className="mt-4 text-muted">No products yet.</p> : null}
-    </div>
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <div className="rounded-md border border-border bg-elevated p-5">
+                <h3 className="font-display text-lg">Sales split</h3>
+                <p className="mt-1 text-xs text-subtle">Click a slice or legend item</p>
+                <div className="mt-4">
+                  <SimplePieChart
+                    slices={moneySlices}
+                    emptyLabel="No sales yet"
+                    formatValue={formatCents}
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border border-border bg-elevated p-5">
+                <h3 className="font-display text-lg">Payouts & debt</h3>
+                <p className="mt-1 text-xs text-subtle">Click a slice or legend item</p>
+                <div className="mt-4">
+                  <SimplePieChart
+                    slices={payoutSlices}
+                    emptyLabel="No payout data yet"
+                    formatValue={formatCents}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="mt-4 text-sm text-muted">Earnings summary unavailable.</p>
+        )}
+      </section>
+
+      <section className="mt-10 rounded-md border border-border bg-elevated p-5">
+        <h2 className="font-display text-xl">Orders by status</h2>
+        <p className="mt-1 text-xs text-subtle">Click a slice or legend item</p>
+        <div className="mt-4">
+          <SimplePieChart slices={orderSlices} emptyLabel="No orders yet" />
+        </div>
+      </section>
+    </Page>
   );
 }

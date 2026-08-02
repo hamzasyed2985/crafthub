@@ -10,7 +10,8 @@ Build in phases. Each phase has a **verify** gate before moving on.
 | 3 | Checkout & Connect | Stripe Connect onboarding + test payment + webhooks | Paid order after webhook |
 | 4 | Vendor ops | Orders, ship, earnings UI | Vendor fulfills test order |
 | 5 | Admin finance | Metrics, refund, commission setting | Refund syncs Stripe |
-| 6 | Trust & polish | Reviews, search, email templates, dark mode QA | Demo script runs clean |
+| 6 | Trust & polish | Reviews, search, email templates, dark mode QA | Demo script runs clean (`trust-polish` e2e) |
+| 6.5 | AI | Embeddings + Concierge + Listing Copilot | `ai.e2e` — real product IDs + draft fields |
 | 7 | Scale & ship | Caching, Sentry, staging+prod, load notes | Public URL + README case study |
 
 ## Phase notes

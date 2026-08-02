@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import {
   fetchVendorMe,
   refreshVendorStripe,
   startVendorStripeOnboard,
 } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function VendorOnboardingPage() {
   const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
@@ -62,17 +64,21 @@ export default function VendorOnboardingPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-lg px-6 py-12">
+      <Page size="narrow">
         <p className="text-danger">{error}</p>
         <Link href="/vendor/apply" className="text-accent">
           Apply first
         </Link>
-      </div>
+      </Page>
     );
   }
 
   if (!vendor) {
-    return <p className="px-6 py-12 text-subtle">Loading…</p>;
+    return (
+      <Page size="narrow">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
   }
 
   const status = String(vendor.status);
@@ -111,10 +117,10 @@ export default function VendorOnboardingPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-12">
+    <Page size="narrow">
       <h1 className="font-display text-3xl">Onboarding</h1>
       <p className="mt-2 text-muted">
-        Status: <strong>{status}</strong>
+        Status: <strong>{formatStatusLabel(status)}</strong>
         {status === 'pending' ? ' — hang tight while CraftHub reviews your shop.' : null}
       </p>
       <ol className="mt-8 space-y-4">
@@ -162,6 +168,6 @@ export default function VendorOnboardingPage() {
           Go to dashboard →
         </Link>
       ) : null}
-    </div>
+    </Page>
   );
 }

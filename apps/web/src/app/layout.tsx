@@ -3,9 +3,11 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Fraunces, Source_Sans_3, IBM_Plex_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/components/auth-provider';
 import { CartProvider } from '@/components/cart-provider';
 import { SiteHeader } from '@/components/site-header';
 import { CartDrawer } from '@/components/cart-drawer';
+import { CraftConcierge } from '@/components/craft-concierge';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -39,11 +41,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${fraunces.variable} ${sourceSans.variable} ${plexMono.variable}`}>
         <ThemeProvider>
-          <CartProvider>
-            <SiteHeader />
-            <main>{children}</main>
-            <CartDrawer />
-          </CartProvider>
+          <AuthProvider>
+            <CartProvider>
+              <SiteHeader />
+              <main>{children}</main>
+              <CartDrawer />
+              <CraftConcierge />
+            </CartProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { fetchAdminSettings, patchAdminSettings } from '@/lib/api';
 
 export default function AdminSettingsPage() {
@@ -45,13 +45,9 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-12">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl">Settings</h1>
-        <Link href="/admin" className="text-sm text-accent">
-          Overview
-        </Link>
-      </div>
+    <Page size="narrow">
+      <h1 className="font-display text-3xl">Settings</h1>
+      <p className="mt-1 text-muted">Platform commission and debt thresholds</p>
       {error ? <p className="mt-4 text-danger">{error}</p> : null}
 
       <form onSubmit={(e) => void onSave(e)} className="mt-8 space-y-4">
@@ -100,6 +96,6 @@ export default function AdminSettingsPage() {
         </Button>
         {note ? <p className="text-sm">{note}</p> : null}
       </form>
-    </div>
+    </Page>
   );
 }

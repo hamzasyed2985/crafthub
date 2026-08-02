@@ -401,3 +401,121 @@ adminFinanceRouter.get('/vendors/:id/ledger', async (req, res, next) => {
     next(err);
   }
 });
+
+/** Commission earned by source: rate, per-vendor totals, recent line items. */
+adminFinanceRouter.get('/finance', async (_req, res, next) => {
+  try {
+    let settings = await prisma.platformSettings.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!settings) {
+      settings = await prisma.platformSettings.create({ data: {} });
+    }
+
+    const commissionStatuses = ['paid', 'fulfilling', 'shipped', 'delivered', 'refunded'] as const;
+
+    const [byVendorRaw, recent, transfersAgg, debtRows] = await Promise.all([
+      prisma.vendorOrder.groupBy({
+        by: ['vendorId'],
+        where: { status: { in: [...commissionStatuses] } },
+        _sum: {
+          commissionCents: true,
+          itemsSubtotalCents: true,
+          vendorNetCents: true,
+        },
+        _count: true,
+      }),
+      prisma.vendorOrder.findMany({
+        where: { status: { in: [...commissionStatuses] } },
+        include: {
+          vendor: { select: { id: true, displayName: true, slug: true } },
+          order: { select: { id: true, status: true, createdAt: true } },
+          items: { select: { title: true, quantity: true, lineTotalCents: true } },
+          transfer: { select: { status: true, amountCents: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 40,
+      }),
+      prisma.transfer.aggregate({
+        where: { status: 'paid' },
+        _sum: { amountCents: true },
+        _count: true,
+      }),
+      prisma.vendorLedgerEntry.groupBy({
+        by: ['kind'],
+        _sum: { amountCents: true },
+      }),
+    ]);
+
+    const vendorIds = byVendorRaw.map((r) => r.vendorId);
+    const vendors = await prisma.vendorProfile.findMany({
+      where: { id: { in: vendorIds } },
+      select: { id: true, displayName: true, slug: true, ledgerReviewRequired: true },
+    });
+    const vendorMap = Object.fromEntries(vendors.map((v) => [v.id, v]));
+
+    const debts = await Promise.all(
+      vendorIds.map(async (id) => [id, await getVendorOutstandingDebtCents(id)] as const),
+    );
+    const debtMap = Object.fromEntries(debts);
+
+    let debt = 0;
+    let offset = 0;
+    for (const row of debtRows) {
+      const sum = row._sum.amountCents ?? 0;
+      if (row.kind === 'refund_debt') debt += sum;
+      else if (row.kind === 'debt_offset') offset += sum;
+    }
+
+    const byVendor = byVendorRaw
+      .map((r) => {
+        const v = vendorMap[r.vendorId];
+        return {
+          vendorId: r.vendorId,
+          displayName: v?.displayName ?? 'Unknown',
+          slug: v?.slug ?? '',
+          ledgerReviewRequired: v?.ledgerReviewRequired ?? false,
+          orderCount: r._count,
+          gmvCents: r._sum.itemsSubtotalCents ?? 0,
+          commissionCents: r._sum.commissionCents ?? 0,
+          vendorNetCents: r._sum.vendorNetCents ?? 0,
+          outstandingDebtCents: debtMap[r.vendorId] ?? 0,
+        };
+      })
+      .sort((a, b) => b.commissionCents - a.commissionCents);
+
+    res.json({
+      data: {
+        settings: {
+          commissionBps: settings.commissionBps,
+          currency: settings.currency,
+          debtReviewThresholdCents: settings.debtReviewThresholdCents,
+        },
+        totals: {
+          platformRevenueCents: byVendor.reduce((n, v) => n + v.commissionCents, 0),
+          gmvCents: byVendor.reduce((n, v) => n + v.gmvCents, 0),
+          paidOutCents: transfersAgg._sum.amountCents ?? 0,
+          paidTransferCount: transfersAgg._count,
+          outstandingVendorDebtCents: Math.max(0, debt - offset),
+        },
+        byVendor,
+        recentCommissions: recent.map((vo) => ({
+          vendorOrderId: vo.id,
+          orderId: vo.orderId,
+          orderStatus: vo.order.status,
+          vendorOrderStatus: vo.status,
+          vendor: vo.vendor,
+          itemsSubtotalCents: vo.itemsSubtotalCents,
+          commissionBps: vo.commissionBps,
+          commissionCents: vo.commissionCents,
+          vendorNetCents: vo.vendorNetCents,
+          transferStatus: vo.transfer?.status ?? null,
+          items: vo.items,
+          createdAt: vo.createdAt.toISOString(),
+        })),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});

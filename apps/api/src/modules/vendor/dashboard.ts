@@ -15,26 +15,42 @@ vendorDashboardRouter.get('/', async (req: VendorRequest, res, next) => {
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const [vendor, ordersToFulfill, recent] = await Promise.all([
-      prisma.vendorProfile.findUniqueOrThrow({
-        where: { id: vendorId },
-        include: { shop: true, stripeAccount: true },
-      }),
-      prisma.vendorOrder.count({
-        where: {
-          vendorId,
-          status: { in: ['paid', 'fulfilling'] },
-        },
-      }),
-      prisma.vendorOrder.findMany({
-        where: {
-          vendorId,
-          status: { in: ['paid', 'fulfilling', 'shipped', 'delivered'] },
-          createdAt: { gte: last30d },
-        },
-        select: { vendorNetCents: true, createdAt: true },
-      }),
-    ]);
+    const [vendor, ordersToFulfill, recent, ordersByStatus, productCount, lowStockCount] =
+      await Promise.all([
+        prisma.vendorProfile.findUniqueOrThrow({
+          where: { id: vendorId },
+          include: { shop: true, stripeAccount: true },
+        }),
+        prisma.vendorOrder.count({
+          where: {
+            vendorId,
+            status: { in: ['paid', 'fulfilling'] },
+          },
+        }),
+        prisma.vendorOrder.findMany({
+          where: {
+            vendorId,
+            status: { in: ['paid', 'fulfilling', 'shipped', 'delivered'] },
+            createdAt: { gte: last30d },
+          },
+          select: { vendorNetCents: true, createdAt: true },
+        }),
+        prisma.vendorOrder.groupBy({
+          by: ['status'],
+          where: { vendorId },
+          _count: true,
+        }),
+        prisma.product.count({
+          where: { shop: { vendorId } },
+        }),
+        prisma.product.count({
+          where: {
+            shop: { vendorId },
+            status: 'active',
+            variants: { some: { stockQty: { lt: 3 } } },
+          },
+        }),
+      ]);
 
     let net7dCents = 0;
     let net30dCents = 0;
@@ -48,6 +64,9 @@ vendorDashboardRouter.get('/', async (req: VendorRequest, res, next) => {
         ordersToFulfill,
         net7dCents,
         net30dCents,
+        productCount,
+        lowStockCount,
+        ordersByStatus: Object.fromEntries(ordersByStatus.map((r) => [r.status, r._count])),
         vendor: serializeVendor(vendor),
       },
     });

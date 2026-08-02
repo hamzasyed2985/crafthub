@@ -158,4 +158,78 @@ describe('e2e · trust & polish (phase 6)', () => {
     });
     expect(dup.status).toBe(409);
   });
+
+  it('enqueues order.refunded email after admin refund', async () => {
+    const admin = await login(SEED.admin.email, SEED.admin.password);
+    const buyer = await registerBuyer({ name: 'Refunded' });
+    await expectOk('/api/v1/cart/items', {
+      method: 'POST',
+      token: buyer.accessToken,
+      body: JSON.stringify({ variantId: mugVariantId, qty: 1 }),
+    });
+    const checkout = await expectOk<{
+      data: { orderId: string; checkoutSessionId: string };
+    }>('/api/v1/checkout/session', {
+      method: 'POST',
+      token: buyer.accessToken,
+      body: JSON.stringify({
+        shipping: {
+          name: uniqueId('p6-refund'),
+          line1: '3 Refund Rd',
+          city: 'Lahore',
+          postalCode: '54000',
+          country: 'PK',
+        },
+      }),
+    });
+    const wh = await postMockPaid(checkout.data.orderId, checkout.data.checkoutSessionId);
+    expect(wh.status).toBe(200);
+
+    await expectOk(`/api/v1/admin/orders/${checkout.data.orderId}/refund`, {
+      method: 'POST',
+      token: admin.data.accessToken,
+      body: JSON.stringify({ reason: 'Phase 6 refund email' }),
+    });
+
+    const refundedEmails = await prisma.emailOutbox.findMany({
+      where: { template: 'order.refunded', toEmail: buyer.user.email },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+    expect(refundedEmails.length).toBe(1);
+    expect(refundedEmails[0]!.subject).toMatch(/refunded/i);
+  });
+
+  it('enqueues vendor.approved email when admin approves', async () => {
+    const buyer = await registerBuyer({ name: 'ApproveMe' });
+    const slug = uniqueId('p6-approve');
+    const applied = await expectOk<{
+      data: { vendor: { id: string } };
+    }>('/api/v1/vendor/apply', {
+      method: 'POST',
+      token: buyer.accessToken,
+      body: JSON.stringify({
+        displayName: `P6 Shop ${slug}`,
+        slug,
+        city: 'Karachi',
+        craftTags: ['pottery'],
+        attestation: true,
+      }),
+    });
+
+    const admin = await login(SEED.admin.email, SEED.admin.password);
+    await expectOk(`/api/v1/admin/vendors/${applied.data.vendor.id}`, {
+      method: 'PATCH',
+      token: admin.data.accessToken,
+      body: JSON.stringify({ status: 'approved', reason: 'phase 6 email' }),
+    });
+
+    const approvedEmails = await prisma.emailOutbox.findMany({
+      where: { template: 'vendor.approved', toEmail: buyer.user.email },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+    expect(approvedEmails.length).toBe(1);
+    expect(approvedEmails[0]!.subject).toMatch(/approved/i);
+  });
 });

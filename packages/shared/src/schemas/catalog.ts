@@ -71,7 +71,7 @@ export const updateProductSchema = z.object({
 export const addMediaSchema = z.object({
   url: z.string().url(),
   alt: z.string().trim().max(200).default(''),
-  sortOrder: z.number().int().min(0).max(100).default(0),
+  sortOrder: z.number().int().min(0).max(100).optional(),
 });
 
 export const adminVendorPatchSchema = z.object({

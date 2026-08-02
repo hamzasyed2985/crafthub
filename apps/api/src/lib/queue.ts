@@ -4,9 +4,11 @@ import { logger } from './logger.js';
 
 export const RESERVATION_QUEUE = 'reservations';
 export const EMAIL_QUEUE = 'emails';
+export const EMBEDDING_QUEUE = 'embeddings';
 
 let queue: Queue | null = null;
 let emailQueue: Queue | null = null;
+let embeddingQueue: Queue | null = null;
 
 function getQueue() {
   if (queue) return queue;
@@ -36,6 +38,20 @@ function getEmailQueue() {
   return emailQueue;
 }
 
+function getEmbeddingQueue() {
+  if (embeddingQueue) return embeddingQueue;
+  embeddingQueue = new Queue(EMBEDDING_QUEUE, {
+    connection: { url: env.REDIS_URL },
+    defaultJobOptions: {
+      removeOnComplete: 100,
+      removeOnFail: 200,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+    },
+  });
+  return embeddingQueue;
+}
+
 /** Schedule a one-shot job to expire reservations for an order after TTL. */
 export async function enqueueReservationExpiry(orderId: string, ttlMinutes: number) {
   try {
@@ -56,4 +72,22 @@ export async function enqueueReservationExpiry(orderId: string, ttlMinutes: numb
 export async function enqueueEmailJob(emailId: string) {
   const q = getEmailQueue();
   await q.add('send', { emailId }, { jobId: `email-${emailId}` });
+}
+
+export async function enqueueProductEmbedding(productId: string) {
+  try {
+    const q = getEmbeddingQueue();
+    await q.add('embed-product', { productId }, { jobId: `embed-${productId}-${Date.now()}` });
+  } catch (err) {
+    logger.warn({ err, productId }, 'Failed to enqueue product embedding (Redis down?)');
+  }
+}
+
+export async function enqueueEmbeddingReindexAll() {
+  try {
+    const q = getEmbeddingQueue();
+    await q.add('embed-all', {}, { jobId: `embed-all-${Date.now()}` });
+  } catch (err) {
+    logger.warn({ err }, 'Failed to enqueue embedding reindex (Redis down?)');
+  }
 }

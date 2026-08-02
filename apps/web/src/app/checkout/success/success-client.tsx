@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import {
   confirmOrderPayment,
   fetchOrder,
@@ -11,6 +12,7 @@ import {
   simulateCheckoutPaid,
   type OrderDto,
 } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function CheckoutSuccessPage() {
   const params = useSearchParams();
@@ -86,7 +88,7 @@ export default function CheckoutSuccessPage() {
           return;
         }
         if (o.status === 'cancelled' || o.status === 'refunded') {
-          setMessage(`Order ${o.status}.`);
+          setMessage(`Order ${formatStatusLabel(o.status)}.`);
           return;
         }
         attempts += 1;
@@ -111,25 +113,25 @@ export default function CheckoutSuccessPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-lg px-6 py-16">
+      <Page size="narrow" y="lg">
         <h1 className="font-display text-3xl">Checkout</h1>
         <p className="mt-3 text-danger">{error}</p>
         <Link href="/cart" className="mt-4 inline-block text-accent">
           Back to cart
         </Link>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
+    <Page size="narrow" y="lg">
       <h1 className="font-display text-3xl">Thank you</h1>
       <p className="mt-3 text-muted">{message}</p>
       {order ? (
         <div className="mt-8 space-y-3 rounded-md border border-border bg-elevated p-4">
           <p className="text-sm text-subtle">Order {order.id.slice(0, 8)}…</p>
           <p>
-            Status: <strong>{order.status}</strong>
+            Status: <strong>{formatStatusLabel(order.status)}</strong>
           </p>
           <p>
             Total: <Price cents={order.totalCents} />
@@ -137,7 +139,7 @@ export default function CheckoutSuccessPage() {
           <ul className="text-sm text-muted">
             {order.vendorOrders.map((vo) => (
               <li key={vo.id}>
-                {vo.vendor.displayName}: {vo.status} · <Price cents={vo.vendorNetCents} /> to maker
+                {vo.vendor.displayName}: {formatStatusLabel(vo.status)} · <Price cents={vo.vendorNetCents} /> to maker
               </li>
             ))}
           </ul>
@@ -157,7 +159,7 @@ export default function CheckoutSuccessPage() {
                   setMessage(
                     r.order.status === 'paid'
                       ? 'Payment confirmed.'
-                      : `Status: ${r.order.status}`,
+                      : `Status: ${formatStatusLabel(r.order.status)}`,
                   );
                 })
                 .catch((err) =>
@@ -172,6 +174,6 @@ export default function CheckoutSuccessPage() {
           <Button variant="secondary">Keep browsing</Button>
         </Link>
       </div>
-    </div>
+    </Page>
   );
 }

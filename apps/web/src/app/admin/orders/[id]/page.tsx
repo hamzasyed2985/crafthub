@@ -4,7 +4,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { fetchAdminOrder, refundAdminOrder } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function AdminOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -41,25 +43,30 @@ export default function AdminOrderDetailPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <Page size="reading">
         <p className="text-danger">{error}</p>
-      </div>
+      </Page>
     );
   }
 
-  if (!order) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (!order)
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
 
   const canRefund =
     order.status === 'paid' || order.status === 'processing' || order.status === 'completed';
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <Page size="reading">
       <Link href="/admin/orders" className="text-sm text-accent">
         ← Orders
       </Link>
       <h1 className="mt-4 font-display text-3xl">Order</h1>
       <p className="mt-2 text-muted">
-        {order.status} · <Price cents={order.totalCents} /> · {order.buyer.email}
+        {formatStatusLabel(order.status)} · <Price cents={order.totalCents} /> · {order.buyer.email}
       </p>
       <p className="mt-1 text-sm text-subtle">
         Ship to {order.shipping.name}, {order.shipping.line1}, {order.shipping.city}{' '}
@@ -71,7 +78,7 @@ export default function AdminOrderDetailPage() {
           <section key={vo.id} className="border-b border-border pb-6">
             <p className="font-display text-xl">{vo.vendor.displayName}</p>
             <p className="text-sm text-muted">
-              Slice {vo.status} · net <Price cents={vo.vendorNetCents} /> · commission{' '}
+              Slice {formatStatusLabel(vo.status)} · net <Price cents={vo.vendorNetCents} /> · commission{' '}
               <Price cents={vo.commissionCents} />
             </p>
             <p className="text-sm text-subtle">
@@ -117,6 +124,6 @@ export default function AdminOrderDetailPage() {
           {note ? <p className="text-sm">{note}</p> : null}
         </form>
       ) : null}
-    </div>
+    </Page>
   );
 }

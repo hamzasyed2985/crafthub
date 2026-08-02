@@ -71,8 +71,8 @@ User message
 
 | Piece | Practical choice |
 |-------|------------------|
-| LLM | OpenAI / Anthropic API (env key) |
-| Embeddings | `text-embedding-3-small` or similar |
+| LLM | **Groq** (free tier, OpenAI-compatible) or OpenAI / Anthropic |
+| Embeddings | Mock bag-of-words by default; optional OpenAI `text-embedding-3-small` (Groq has no embeddings) |
 | Store | Postgres + **pgvector** (keeps one DB) |
 | Orchestration | Express module `ai/` + optional BullMQ for reindex |
 
@@ -131,7 +131,11 @@ Good talking point: AI + admin RBAC + audit log.
 | `ai_generations` | vendor drafts: prompt meta, output JSON, user_id |
 | `ai_concierge_sessions` | optional chat history per user/session |
 
-Reindex embeddings on product create/update (BullMQ job).
+Reindex embeddings on product create/update (BullMQ job). Embeddings are stored as JSON float arrays with cosine similarity in the API (works on stock Postgres). Swap to **pgvector** later for large catalogs without changing the product API.
+
+Mock mode (`E2E_AI_MOCK=1`, or no Groq/OpenAI chat key) uses deterministic bag-of-words embeddings + templated replies so local/e2e needs no paid API key.
+
+**Groq (recommended free chat):** set `GROQ_API_KEY` from [console.groq.com/keys](https://console.groq.com/keys), set `E2E_AI_MOCK=0`, restart API. Retrieval still uses mock embeddings unless `OPENAI_API_KEY` is also set.
 
 ---
 

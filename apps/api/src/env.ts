@@ -20,6 +20,14 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
   E2E_STRIPE_MOCK: z.string().optional().default(''),
   RESERVATION_TTL_MINUTES: z.coerce.number().default(30),
+  OPENAI_API_KEY: z.string().optional().default(''),
+  OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  OPENAI_CHAT_MODEL: z.string().default('gpt-4o-mini'),
+  GROQ_API_KEY: z.string().optional().default(''),
+  GROQ_CHAT_MODEL: z.string().default('llama-3.1-8b-instant'),
+  E2E_AI_MOCK: z.string().optional().default(''),
+  AI_RATE_LIMIT_PER_MIN: z.coerce.number().default(30),
+  AI_MAX_TOKENS: z.coerce.number().default(600),
 });
 
 const parsed = envSchema.safeParse(process.env);

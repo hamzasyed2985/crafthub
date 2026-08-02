@@ -1,22 +1,48 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@crafthub/ui';
+import { Page } from '@/components/page';
+import { PaginationControls } from '@/components/pagination-controls';
 import { fetchAdminVendors, patchAdminVendor, type VendorSummary } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 type Row = VendorSummary & { user: { email: string; name: string | null } };
 
-export default function AdminVendorsPage() {
-  const [status, setStatus] = useState('pending');
+function AdminVendorsClient() {
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get('status') ?? 'pending';
+  const [status, setStatus] = useState(initialStatus);
+  const [page, setPage] = useState(1);
+  const [qInput, setQInput] = useState('');
+  const [q, setQ] = useState('');
   const [vendors, setVendors] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(24);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function load(nextStatus = status) {
+  useEffect(() => {
+    setStatus(initialStatus);
+    setPage(1);
+  }, [initialStatus]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setQ(qInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [qInput]);
+
+  async function load(nextStatus = status, nextPage = page, nextQ = q) {
     try {
-      const res = await fetchAdminVendors(nextStatus || undefined);
+      const res = await fetchAdminVendors(nextStatus || undefined, nextPage, 24, nextQ || undefined);
       setVendors(res.data as Row[]);
+      setTotal(res.meta.total);
+      setLimit(res.meta.limit);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
@@ -24,15 +50,15 @@ export default function AdminVendorsPage() {
   }
 
   useEffect(() => {
-    void load(status);
+    void load(status, page, q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, page, q]);
 
   async function setVendorStatus(id: string, next: 'approved' | 'suspended' | 'pending') {
     setBusyId(id);
     try {
       await patchAdminVendor(id, { status: next });
-      await load(status);
+      await load(status, page, q);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed');
     } finally {
@@ -41,24 +67,43 @@ export default function AdminVendorsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
+    <Page size="default">
       <h1 className="font-display text-3xl">Vendors</h1>
       <p className="mt-1 text-muted">Approve makers so their shops appear publicly.</p>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {['pending', 'approved', 'suspended', ''].map((s) => (
           <button
             key={s || 'all'}
             type="button"
-            onClick={() => setStatus(s)}
+            onClick={() => {
+              setStatus(s);
+              setPage(1);
+            }}
             className={`rounded-md border px-3 py-1.5 text-sm ${
               status === s ? 'border-accent bg-accent-muted' : 'border-border'
             }`}
           >
-            {s || 'all'}
+            {s ? formatStatusLabel(s) : 'All'}
           </button>
         ))}
       </div>
+
+      <label className="mt-4 block">
+        <span className="sr-only">Search vendors</span>
+        <input
+          type="search"
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+          placeholder="Search by name, email, slug, or city…"
+          className="min-h-11 w-full max-w-md rounded-sm border border-border-strong bg-elevated px-3 text-sm text-foreground"
+        />
+      </label>
+      {q ? (
+        <p className="mt-2 text-sm text-subtle">
+          {total} match{total === 1 ? '' : 'es'} for “{q}”
+        </p>
+      ) : null}
 
       {error ? <p className="mt-4 text-danger">{error}</p> : null}
 
@@ -68,8 +113,8 @@ export default function AdminVendorsPage() {
             <div>
               <p className="font-semibold">{v.displayName}</p>
               <p className="text-sm text-subtle">
-                {v.user.email} · {v.city} · {v.status}
-                {v.ledgerReviewRequired ? ' · ledger review' : ''}
+                {v.user.email} · {v.city} · {formatStatusLabel(v.status)}
+                {v.ledgerReviewRequired ? ' · Ledger review' : ''}
               </p>
               <Link href={`/shops/${v.slug}`} className="text-sm text-accent">
                 /shops/{v.slug}
@@ -88,7 +133,7 @@ export default function AdminVendorsPage() {
               {v.status !== 'suspended' ? (
                 <Button
                   size="sm"
-                  variant="danger"
+                  variant="secondary"
                   loading={busyId === v.id}
                   onClick={() => void setVendorStatus(v.id, 'suspended')}
                 >
@@ -108,7 +153,26 @@ export default function AdminVendorsPage() {
           </li>
         ))}
       </ul>
-      {vendors.length === 0 ? <p className="mt-6 text-muted">No vendors in this filter.</p> : null}
-    </div>
+      {vendors.length === 0 ? (
+        <p className="mt-6 text-muted">
+          {q ? 'No vendors match this search.' : 'No vendors in this filter.'}
+        </p>
+      ) : null}
+      <PaginationControls page={page} limit={limit} total={total} onPageChange={setPage} />
+    </Page>
+  );
+}
+
+export default function AdminVendorsPage() {
+  return (
+    <Suspense
+      fallback={
+        <Page size="default">
+          <p className="text-subtle">Loading vendors…</p>
+        </Page>
+      }
+    >
+      <AdminVendorsClient />
+    </Suspense>
   );
 }

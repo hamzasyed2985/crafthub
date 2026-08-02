@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Page } from '@/components/page';
 import { fetchAdminAuditLogs } from '@/lib/api';
 
 export default function AdminAuditLogsPage() {
@@ -16,13 +16,9 @@ export default function AdminAuditLogsPage() {
   }, [filter]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl">Audit log</h1>
-        <Link href="/admin" className="text-sm text-accent">
-          Overview
-        </Link>
-      </div>
+    <Page size="default">
+      <h1 className="font-display text-3xl">Audit log</h1>
+      <p className="mt-1 text-muted">Recent admin actions</p>
 
       <input
         className="mt-6 w-full max-w-sm rounded-md border border-border bg-canvas px-3 py-2 text-sm"
@@ -48,6 +44,6 @@ export default function AdminAuditLogsPage() {
           ))}
         </ul>
       ) : null}
-    </div>
+    </Page>
   );
 }

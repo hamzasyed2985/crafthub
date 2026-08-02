@@ -64,8 +64,26 @@ type AuthResponse = {
 
 async function parseError(res: Response): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: { message?: string } };
-    return body.error?.message ?? 'Request failed';
+    const body = (await res.json()) as {
+      error?: {
+        message?: string;
+        code?: string;
+        details?: {
+          formErrors?: string[];
+          fieldErrors?: Record<string, string[] | undefined>;
+        };
+      };
+    };
+    const message = body.error?.message ?? 'Request failed';
+    const fieldErrors = body.error?.details?.fieldErrors;
+    if (fieldErrors && typeof fieldErrors === 'object') {
+      const parts = Object.entries(fieldErrors)
+        .flatMap(([field, msgs]) => (msgs ?? []).map((m) => `${field}: ${m}`));
+      if (parts.length > 0) return `${message} — ${parts.join('; ')}`;
+    }
+    const formErrors = body.error?.details?.formErrors?.filter(Boolean);
+    if (formErrors?.length) return `${message} — ${formErrors.join('; ')}`;
+    return message;
   } catch {
     return 'Request failed';
   }
@@ -73,6 +91,27 @@ async function parseError(res: Response): Promise<string> {
 
 const ACCESS_TOKEN_KEY = 'crafthub_access_token';
 const CART_SESSION_KEY = 'crafthub_cart_session';
+
+/** Auth endpoints that return 401 for bad credentials — do not treat as session expiry. */
+function isCredentialAuthPath(path: string) {
+  return (
+    path.startsWith('/api/v1/auth/login') ||
+    path.startsWith('/api/v1/auth/register')
+  );
+}
+
+function redirectToLoginForExpiredSession() {
+  if (typeof window === 'undefined') return;
+  clearAccessToken();
+  if (window.location.pathname.startsWith('/login')) return;
+
+  const next = `${window.location.pathname}${window.location.search}`;
+  const params = new URLSearchParams({ reason: 'session_expired' });
+  if (next && next !== '/' && !next.startsWith('/login')) {
+    params.set('next', next);
+  }
+  window.location.assign(`/login?${params.toString()}`);
+}
 
 export type CartDto = {
   id: string;
@@ -155,7 +194,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   });
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) {
+    if (res.status === 401 && !isCredentialAuthPath(path)) {
+      redirectToLoginForExpiredSession();
+    }
+    throw new Error(await parseError(res));
+  }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
@@ -240,10 +284,15 @@ export async function fetchShops(params?: Record<string, string>) {
 }
 
 export async function fetchShop(slug: string) {
+  return fetchShopPage(slug, { limit: '24' });
+}
+
+export async function fetchShopPage(slug: string, params?: Record<string, string>) {
+  const qs = params ? `?${new URLSearchParams(params)}` : '';
   return api<{
     data: {
       shop: {
-        id: string;
+        id?: string;
         displayName: string;
         slug: string;
         bio: string | null;
@@ -258,7 +307,18 @@ export async function fetchShop(slug: string) {
       };
       products: ProductDto[];
     };
-  }>(`/api/v1/shops/${slug}`);
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/shops/${slug}${qs}`);
+}
+
+export async function fetchShopProduct(shopSlug: string, productSlug: string) {
+  const body = await api<{
+    data: {
+      shop: { displayName: string; slug: string; flatShippingCents: number };
+      product: ProductDto;
+    };
+  }>(`/api/v1/shops/${shopSlug}/products/${productSlug}`);
+  return body.data;
 }
 
 export async function applyVendor(input: {
@@ -289,9 +349,18 @@ export async function updateVendorShop(input: Record<string, unknown>) {
   return body.data.vendor;
 }
 
-export async function fetchVendorProducts() {
-  const body = await api<{ data: ProductDto[] }>('/api/v1/vendor/products');
-  return body.data;
+export async function fetchVendorProducts(params?: Record<string, string>) {
+  const qs = params ? `?${new URLSearchParams(params)}` : '';
+  const body = await api<{
+    data: ProductDto[];
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/vendor/products${qs}`);
+  return body;
+}
+
+export async function fetchVendorProduct(id: string) {
+  const body = await api<{ data: { product: ProductDto } }>(`/api/v1/vendor/products/${id}`);
+  return body.data.product;
 }
 
 export async function createVendorProduct(input: unknown) {
@@ -311,17 +380,93 @@ export async function updateVendorProduct(id: string, input: unknown) {
 }
 
 export async function addProductMedia(id: string, input: { url: string; alt?: string }) {
-  return api<{ data: { media: { id: string; url: string; alt: string } } }>(
+  return api<{ data: { media: { id: string; url: string; alt: string; sortOrder: number } } }>(
     `/api/v1/vendor/products/${id}/media`,
     { method: 'POST', body: JSON.stringify(input) },
   );
 }
 
-export async function fetchAdminVendors(status?: string) {
-  const qs = status ? `?status=${status}` : '';
-  return api<{ data: Array<VendorSummary & { user: { email: string; name: string | null } }> }>(
-    `/api/v1/admin/vendors${qs}`,
-  );
+export async function deleteProductMedia(productId: string, mediaId: string) {
+  await api(`/api/v1/vendor/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
+}
+
+export async function fetchAdminFinance() {
+  return api<{
+    data: {
+      settings: {
+        commissionBps: number;
+        currency: string;
+        debtReviewThresholdCents: number;
+      };
+      totals: {
+        platformRevenueCents: number;
+        gmvCents: number;
+        paidOutCents: number;
+        paidTransferCount: number;
+        outstandingVendorDebtCents: number;
+      };
+      byVendor: Array<{
+        vendorId: string;
+        displayName: string;
+        slug: string;
+        ledgerReviewRequired: boolean;
+        orderCount: number;
+        gmvCents: number;
+        commissionCents: number;
+        vendorNetCents: number;
+        outstandingDebtCents: number;
+      }>;
+      recentCommissions: Array<{
+        vendorOrderId: string;
+        orderId: string;
+        orderStatus: string;
+        vendorOrderStatus: string;
+        vendor: { id: string; displayName: string; slug: string };
+        itemsSubtotalCents: number;
+        commissionBps: number;
+        commissionCents: number;
+        vendorNetCents: number;
+        transferStatus: string | null;
+        items: Array<{ title: string; quantity: number; lineTotalCents: number }>;
+        createdAt: string;
+      }>;
+    };
+  }>('/api/v1/admin/finance');
+}
+
+export async function fetchAdminVendorLedger(vendorId: string) {
+  return api<{
+    data: {
+      vendorId: string;
+      outstandingDebtCents: number;
+      ledgerReviewRequired: boolean;
+      entries: Array<{
+        id: string;
+        kind: string;
+        amountCents: number;
+        currency: string;
+        orderId: string | null;
+        vendorOrderId: string | null;
+        note: string | null;
+        createdAt: string;
+      }>;
+    };
+  }>(`/api/v1/admin/vendors/${vendorId}/ledger`);
+}
+
+export async function fetchAdminVendors(
+  status?: string,
+  page = 1,
+  limit = 24,
+  q?: string,
+) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  if (q?.trim()) params.set('q', q.trim());
+  return api<{
+    data: Array<VendorSummary & { user: { email: string; name: string | null } }>;
+    meta: { total: number; page: number; limit: number; q?: string };
+  }>(`/api/v1/admin/vendors?${params}`);
 }
 
 export async function patchAdminVendor(
@@ -395,12 +540,13 @@ export type AdminOrderRow = {
   createdAt: string;
 };
 
-export async function fetchAdminOrders(status?: string) {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-  const body = await api<{ data: AdminOrderRow[]; meta: { total: number } }>(
-    `/api/v1/admin/orders${qs}`,
-  );
-  return body.data;
+export async function fetchAdminOrders(status?: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  return api<{
+    data: AdminOrderRow[];
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/admin/orders?${params}`);
 }
 
 export async function fetchAdminOrder(id: string) {
@@ -473,11 +619,16 @@ export async function fetchAdminAuditLogs(action?: string) {
   return body.data;
 }
 
-export async function searchCatalog(q: string) {
+export async function searchCatalog(q: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({
+    q,
+    page: String(page),
+    limit: String(limit),
+  });
   const body = await api<{
     data: { products: ProductDto[]; shops: VendorSummary[] };
     meta: { totalProducts: number; totalShops: number; page: number; limit: number; q: string };
-  }>(`/api/v1/search?q=${encodeURIComponent(q)}`);
+  }>(`/api/v1/search?${params}`);
   return { ...body.data, meta: body.meta };
 }
 
@@ -507,6 +658,61 @@ export async function createProductReview(
     { method: 'POST', body: JSON.stringify(input) },
   );
   return body.data.review;
+}
+
+export type ConciergeProduct = {
+  id: string;
+  title: string;
+  slug: string;
+  shopSlug: string;
+  shopName: string;
+  priceCents: number | null;
+  currency: string;
+  imageUrl: string | null;
+  score: number;
+};
+
+export async function askConcierge(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  limit = 6,
+) {
+  const body = await api<{
+    data: {
+      reply: string;
+      productIds: string[];
+      shopSlugs: string[];
+      products: ConciergeProduct[];
+      meta: { retrieved: number; mock: boolean; basedOnCatalog: boolean };
+    };
+  }>('/api/v1/ai/concierge', {
+    method: 'POST',
+    body: JSON.stringify({ messages, limit }),
+  });
+  return body.data;
+}
+
+export type ListingDraft = {
+  title: string;
+  description: string;
+  tags: string[];
+  categorySuggestion: string | null;
+  categoryId: string | null;
+  materialCare: string;
+  moderationWarnings: string[];
+};
+
+export async function generateListingDraft(input: {
+  notes: string;
+  categoryHint?: string;
+  titleHint?: string;
+}) {
+  const body = await api<{
+    data: { draft: ListingDraft; meta: { mock: boolean } };
+  }>('/api/v1/ai/listings/generate', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return body.data;
 }
 
 export async function fetchCart() {
@@ -632,9 +838,12 @@ export async function createCheckoutSession(input: {
   return body.data;
 }
 
-export async function fetchOrders() {
-  const body = await api<{ data: OrderDto[] }>('/api/v1/orders');
-  return body.data;
+export async function fetchOrders(page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  return api<{
+    data: OrderDto[];
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/orders?${params}`);
 }
 
 export async function fetchOrder(id: string) {
@@ -692,12 +901,13 @@ export async function fetchVendorStripeStatus() {
   return body.data;
 }
 
-export async function fetchVendorOrders(status?: string) {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-  const body = await api<{
+export async function fetchVendorOrders(status?: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  return api<{
     data: VendorOrderDto[];
-  }>(`/api/v1/vendor/orders${qs}`);
-  return body.data;
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/vendor/orders?${params}`);
 }
 
 export type VendorOrderDto = {
@@ -792,6 +1002,9 @@ export type VendorDashboardDto = {
   ordersToFulfill: number;
   net7dCents: number;
   net30dCents: number;
+  productCount: number;
+  lowStockCount: number;
+  ordersByStatus: Record<string, number>;
   vendor: Record<string, unknown>;
 };
 

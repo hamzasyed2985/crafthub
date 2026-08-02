@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { Page } from '@/components/page';
 import { confirmOrderPayment, fetchOrder, readAccessToken, type OrderDto } from '@/lib/api';
+import { formatStatusLabel } from '@/lib/format-status';
 
 export default function AccountOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -39,22 +41,27 @@ export default function AccountOrderDetailPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-12">
+      <Page size="reading">
         <p className="text-danger">{error}</p>
-      </div>
+      </Page>
     );
   }
 
-  if (!order) return <p className="px-6 py-12 text-subtle">Loading…</p>;
+  if (!order)
+    return (
+      <Page size="reading">
+        <p className="text-subtle">Loading…</p>
+      </Page>
+    );
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <Page size="reading">
       <Link href="/account/orders" className="text-sm text-accent">
         ← All orders
       </Link>
       <h1 className="mt-4 font-display text-3xl">Order detail</h1>
       <p className="mt-2 text-muted">
-        Status <strong>{order.status}</strong> · <Price cents={order.totalCents} />
+        Status <strong>{formatStatusLabel(order.status)}</strong> · <Price cents={order.totalCents} />
       </p>
       <p className="mt-2 text-sm text-subtle">
         Ship to {order.shipping.name}, {order.shipping.line1}, {order.shipping.city}{' '}
@@ -80,7 +87,7 @@ export default function AccountOrderDetailPage() {
             <Link href={`/shops/${vo.vendor.slug}`} className="font-display text-xl hover:text-accent">
               {vo.vendor.displayName}
             </Link>
-            <p className="text-sm text-muted">Vendor status: {vo.status}</p>
+            <p className="text-sm text-muted">Vendor status: {formatStatusLabel(vo.status)}</p>
             {vo.status === 'shipped' && (vo.trackingNumber || vo.shippedAt) ? (
               <p className="mt-1 text-sm text-muted">
                 {vo.shippedAt ? `Shipped ${new Date(vo.shippedAt).toLocaleString()}` : 'Shipped'}
@@ -102,6 +109,6 @@ export default function AccountOrderDetailPage() {
           </section>
         ))}
       </div>
-    </div>
+    </Page>
   );
 }

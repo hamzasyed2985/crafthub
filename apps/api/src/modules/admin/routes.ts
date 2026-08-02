@@ -15,10 +15,23 @@ adminRouter.get('/vendors', async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
 
-    const where = status
-      ? { status: status as 'pending' | 'approved' | 'suspended' }
-      : {};
+    const where: {
+      status?: 'pending' | 'approved' | 'suspended';
+      OR?: Array<Record<string, unknown>>;
+    } = status ? { status: status as 'pending' | 'approved' | 'suspended' } : {};
+
+    if (q) {
+      where.OR = [
+        { displayName: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+        { city: { contains: q, mode: 'insensitive' } },
+        { bio: { contains: q, mode: 'insensitive' } },
+        { user: { email: { contains: q, mode: 'insensitive' } } },
+        { user: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
 
     const [total, vendors] = await Promise.all([
       prisma.vendorProfile.count({ where }),
@@ -36,7 +49,7 @@ adminRouter.get('/vendors', async (req, res, next) => {
         ...serializeVendor(v),
         user: { email: v.user.email, name: v.user.name },
       })),
-      meta: { total, page, limit },
+      meta: { total, page, limit, q },
     });
   } catch (err) {
     next(err);
