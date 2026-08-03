@@ -57,10 +57,10 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
   errorHandler(err, req, res, next);
 });
 
-app.listen(env.API_PORT, () => {
+app.listen(env.listenPort, () => {
   logger.info(
-    { stripeMock: env.useStripeMock },
-    `CraftHub API listening on :${env.API_PORT}`,
+    { stripeMock: env.useStripeMock, port: env.listenPort },
+    `CraftHub API listening on :${env.listenPort}`,
   );
 });
 

@@ -41,6 +41,8 @@ if (!parsed.success) {
 
 export const env = {
   ...parsed.data,
+  /** Railway/Heroku set PORT; local/dev use API_PORT (default 4000). */
+  listenPort: process.env.PORT ? Number(process.env.PORT) : parsed.data.API_PORT,
   useStripeMock:
     parsed.data.E2E_STRIPE_MOCK === '1' ||
     parsed.data.E2E_STRIPE_MOCK === 'true' ||
