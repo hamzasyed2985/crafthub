@@ -1,4 +1,14 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+function normalizeApiBaseUrl(raw: string): string {
+  let url = raw.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+  return url;
+}
+
+const API_URL = normalizeApiBaseUrl(
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
+);
 
 export type AuthUser = {
   id: string;
