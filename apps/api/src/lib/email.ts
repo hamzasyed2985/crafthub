@@ -7,13 +7,15 @@ export type EmailTemplate =
   | 'order.paid'
   | 'order.shipped'
   | 'order.refunded'
-  | 'vendor.approved';
+  | 'vendor.approved'
+  | 'auth.password_reset';
 
 const SUBJECTS: Record<EmailTemplate, string> = {
   'order.paid': 'Your CraftHub order is confirmed',
   'order.shipped': 'Your CraftHub order has shipped',
   'order.refunded': 'Your CraftHub order was refunded',
   'vendor.approved': 'Your CraftHub shop was approved',
+  'auth.password_reset': 'Reset your CraftHub password',
 };
 
 function renderBody(template: EmailTemplate, payload: Record<string, unknown>): string {
@@ -58,6 +60,17 @@ function renderBody(template: EmailTemplate, payload: Record<string, unknown>): 
         '',
         `Your shop “${payload.shopName ?? 'your shop'}” is approved.`,
         `Complete Stripe onboarding and publish products: ${app}/vendor/onboarding`,
+        '',
+        '— CraftHub',
+      ].join('\n');
+    case 'auth.password_reset':
+      return [
+        `Hi${payload.name ? ` ${payload.name}` : ''},`,
+        '',
+        'We received a request to reset your CraftHub password.',
+        `Reset it here (expires in 1 hour): ${payload.resetUrl ?? app}`,
+        '',
+        'If you did not request this, you can ignore this email.',
         '',
         '— CraftHub',
       ].join('\n');

@@ -18,15 +18,16 @@ export function uniqueId(prefix = 'e2e'): string {
 
 export async function api<T>(
   path: string,
-  init: RequestInit & { token?: string; cartSession?: string } = {},
+  init: RequestInit & { token?: string; cartSession?: string; cookie?: string } = {},
 ): Promise<{ status: number; body: T; headers: Headers }> {
-  const { token, cartSession, headers: initHeaders, ...rest } = init;
+  const { token, cartSession, cookie, headers: initHeaders, ...rest } = init;
   const headers = new Headers(initHeaders);
   if (!headers.has('Content-Type') && rest.body) {
     headers.set('Content-Type', 'application/json');
   }
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (cartSession) headers.set('X-Cart-Session', cartSession);
+  if (cookie) headers.set('Cookie', cookie);
 
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
@@ -44,6 +45,23 @@ export async function api<T>(
   }
 
   return { status: res.status, body, headers: res.headers };
+}
+
+/** Extract a named cookie value from Set-Cookie response headers. */
+export function cookieFromSetCookie(headers: Headers, name: string): string | null {
+  const list =
+    typeof headers.getSetCookie === 'function'
+      ? headers.getSetCookie()
+      : [headers.get('set-cookie')].filter((v): v is string => Boolean(v));
+  for (const raw of list) {
+    for (const part of raw.split(/,(?=\s*[^;=]+=)/)) {
+      const pair = part.trim().split(';')[0] ?? '';
+      const eq = pair.indexOf('=');
+      if (eq <= 0) continue;
+      if (pair.slice(0, eq) === name) return pair.slice(eq + 1);
+    }
+  }
+  return null;
 }
 
 export async function expectOk<T>(

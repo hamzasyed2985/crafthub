@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint · Typecheck · Build packages
+    name: Typecheck · Build packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,3 +42,83 @@ jobs:
           DATABASE_URL: postgresql://crafthub:crafthub@localhost:5432/crafthub?schema=public
           JWT_SECRET: ci-test-secret-at-least-16-chars
           NEXT_PUBLIC_API_URL: http://localhost:4000
+
+  e2e-auth:
+    name: E2E auth smoke
+    runs-on: ubuntu-latest
+    needs: quality
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: crafthub
+          POSTGRES_PASSWORD: crafthub
+          POSTGRES_DB: crafthub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crafthub -d crafthub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://crafthub:crafthub@localhost:5432/crafthub?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret-at-least-16-chars
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      APP_URL: http://localhost:3000
+      API_PORT: 4000
+      CORS_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      E2E_STRIPE_MOCK: '1'
+      E2E_AI_MOCK: '1'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build packages
+        run: pnpm --filter @crafthub/shared build && pnpm --filter @crafthub/db build
+
+      - name: Push schema + seed
+        run: pnpm db:push && pnpm db:seed
+
+      - name: Start API
+        run: |
+          pnpm --filter @crafthub/api exec tsx src/index.ts &
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:4000/health >/dev/null; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to start"
+          exit 1
+
+      - name: Run auth e2e
+        run: pnpm exec vitest run --config vitest.config.e2e.ts tests/e2e/auth-edges.e2e.test.ts

@@ -3,14 +3,16 @@
  * validation errors, logout, banned accounts, guest-cart merge on register/login.
  */
 import { describe, expect, it } from 'vitest';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   api,
+  cookieFromSetCookie,
   expectOk,
   registerBuyer,
   uniqueId,
   variantIdForShopProduct,
 } from './helpers/api';
-import { banUserByEmail } from './helpers/db';
+import { banUserByEmail, prisma } from './helpers/db';
 
 type CartResponse = {
   data: {
@@ -126,5 +128,76 @@ describe('e2e · auth edges', () => {
     });
     expect(status).toBe(401);
     expect(body.error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('rotates refresh cookie into a new access token', async () => {
+    const email = `${uniqueId('refresh')}@crafthub.test`;
+    const password = 'TestPass123!';
+    const registered = await api<{ data: { accessToken: string } }>('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name: 'Refresh Buyer' }),
+    });
+    expect(registered.status).toBe(201);
+    const refresh = cookieFromSetCookie(registered.headers, 'refresh_token');
+    expect(refresh).toBeTruthy();
+
+    const refreshed = await expectOk<{ data: { accessToken: string } }>('/api/v1/auth/refresh', {
+      method: 'POST',
+      cookie: `refresh_token=${refresh}`,
+    });
+    expect(refreshed.data.accessToken).toBeTruthy();
+    expect(refreshed.data.accessToken).not.toBe(registered.body.data.accessToken);
+
+    const me = await expectOk<{ data: { user: { email: string } } }>('/api/v1/auth/me', {
+      token: refreshed.data.accessToken,
+    });
+    expect(me.data.user.email).toBe(email);
+  });
+
+  it('resets password via token and revokes old sessions', async () => {
+    const buyer = await registerBuyer();
+    const forgot = await expectOk<{ data: { ok: boolean } }>('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: buyer.user.email }),
+    });
+    expect(forgot.data.ok).toBe(true);
+
+    // Insert a known raw token (API hashes on write; we create one for the test).
+    const raw = randomBytes(32).toString('base64url');
+    const hash = createHash('sha256').update(raw).digest('hex');
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: buyer.user.id,
+        tokenHash: hash,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    const newPassword = 'NewPass123!';
+    await expectOk('/api/v1/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token: raw, password: newPassword }),
+    });
+
+    const oldLogin = await api<{ error: { code: string } }>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: buyer.user.email, password: buyer.password }),
+    });
+    expect(oldLogin.status).toBe(401);
+
+    const loggedIn = await expectOk<{ data: { accessToken: string } }>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: buyer.user.email, password: newPassword }),
+    });
+    expect(loggedIn.data.accessToken).toBeTruthy();
+  });
+
+  it('echoes X-Request-Id on responses', async () => {
+    const custom = 'e2e-req-id-12345';
+    const { status, headers } = await api('/health', {
+      headers: { 'X-Request-Id': custom },
+    });
+    expect(status).toBe(200);
+    expect(headers.get('x-request-id')).toBe(custom);
   });
 });

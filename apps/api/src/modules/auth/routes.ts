@@ -1,6 +1,13 @@
+import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { prisma } from '@crafthub/db';
-import { loginSchema, registerSchema } from '@crafthub/shared';
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from '@crafthub/shared';
+import { env } from '../../env.js';
 import { AppError } from '../../lib/errors.js';
 import {
   createRefreshToken,
@@ -11,9 +18,13 @@ import {
 } from '../../lib/auth-tokens.js';
 import { clearAuthCookies, setAuthCookies } from '../../lib/cookies.js';
 import { mergeGuestCartIntoUser, readCartSessionId } from '../../lib/cart.js';
+import { enqueueEmail } from '../../lib/email.js';
+import { checkRateLimit, clientIp } from '../../lib/rate-limit.js';
 import { requireAuth, type AuthedRequest } from '../../middleware/auth.js';
 
 export const authRouter = Router();
+
+const RESET_TTL_MS = 60 * 60 * 1000;
 
 function publicUser(user: {
   id: string;
@@ -31,6 +42,16 @@ function publicUser(user: {
     status: user.status,
     createdAt: user.createdAt.toISOString(),
   };
+}
+
+function assertAuthRateLimit(req: { headers: Record<string, unknown>; socket?: { remoteAddress?: string } }, scope: string) {
+  const limit = checkRateLimit(
+    `auth:${scope}:${clientIp(req)}`,
+    env.AUTH_RATE_LIMIT_PER_MIN,
+  );
+  if (!limit.ok) {
+    throw new AppError(429, 'RATE_LIMITED', `Too many requests. Retry in ${limit.retryAfterSec}s`);
+  }
 }
 
 async function issueSession(user: {
@@ -56,6 +77,7 @@ async function issueSession(user: {
 
 authRouter.post('/register', async (req, res, next) => {
   try {
+    assertAuthRateLimit(req, 'register');
     const input = registerSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
     if (existing) {
@@ -91,8 +113,22 @@ authRouter.post('/register', async (req, res, next) => {
 
 authRouter.post('/login', async (req, res, next) => {
   try {
+    assertAuthRateLimit(req, 'login');
     const input = loginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
+    const emailKey = input.email.toLowerCase();
+    const emailLimit = checkRateLimit(
+      `auth:login-email:${emailKey}`,
+      Math.max(5, Math.floor(env.AUTH_RATE_LIMIT_PER_MIN / 2)),
+    );
+    if (!emailLimit.ok) {
+      throw new AppError(
+        429,
+        'RATE_LIMITED',
+        `Too many requests. Retry in ${emailLimit.retryAfterSec}s`,
+      );
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: emailKey } });
     if (!user) {
       throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
     }
@@ -117,6 +153,129 @@ authRouter.post('/login', async (req, res, next) => {
         accessToken: tokens.accessToken,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Rotate refresh cookie → new access + refresh. Old refresh is revoked. */
+authRouter.post('/refresh', async (req, res, next) => {
+  try {
+    assertAuthRateLimit(req, 'refresh');
+    const rawRefresh = req.cookies?.refresh_token as string | undefined;
+    if (!rawRefresh) {
+      throw new AppError(401, 'UNAUTHORIZED', 'Missing refresh token');
+    }
+
+    const existing = await prisma.refreshToken.findUnique({
+      where: { tokenHash: hashToken(rawRefresh) },
+      include: { user: true },
+    });
+
+    if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+      clearAuthCookies(res);
+      throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token');
+    }
+
+    if (existing.user.status === 'banned') {
+      clearAuthCookies(res);
+      throw new AppError(403, 'BANNED', 'This account has been banned');
+    }
+
+    await prisma.refreshToken.update({
+      where: { id: existing.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const tokens = await issueSession(existing.user);
+    setAuthCookies(res, tokens);
+
+    res.json({
+      data: {
+        user: publicUser(existing.user),
+        accessToken: tokens.accessToken,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/forgot-password', async (req, res, next) => {
+  try {
+    assertAuthRateLimit(req, 'forgot');
+    const input = forgotPasswordSchema.parse(req.body);
+    const email = input.email.toLowerCase();
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user && user.status === 'active') {
+      const raw = randomBytes(32).toString('base64url');
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(raw),
+          expiresAt: new Date(Date.now() + RESET_TTL_MS),
+        },
+      });
+
+      const resetUrl = `${env.APP_URL}/reset-password?token=${encodeURIComponent(raw)}`;
+      await enqueueEmail({
+        toEmail: user.email,
+        template: 'auth.password_reset',
+        payload: {
+          name: user.name,
+          resetUrl,
+        },
+      });
+    }
+
+    // Same response whether or not the email exists (no enumeration).
+    res.json({
+      data: {
+        ok: true,
+        message: 'If that email is registered, you will receive reset instructions shortly.',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/reset-password', async (req, res, next) => {
+  try {
+    assertAuthRateLimit(req, 'reset');
+    const input = resetPasswordSchema.parse(req.body);
+    const row = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(input.token) },
+      include: { user: true },
+    });
+
+    if (!row || row.usedAt || row.expiresAt < new Date()) {
+      throw new AppError(400, 'INVALID_RESET_TOKEN', 'This reset link is invalid or has expired');
+    }
+
+    if (row.user.status === 'banned') {
+      throw new AppError(403, 'BANNED', 'This account has been banned');
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: row.userId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: row.id },
+        data: { usedAt: new Date() },
+      }),
+      prisma.refreshToken.updateMany({
+        where: { userId: row.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    clearAuthCookies(res);
+    res.json({ data: { ok: true } });
   } catch (err) {
     next(err);
   }

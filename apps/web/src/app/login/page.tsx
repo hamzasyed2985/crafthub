@@ -26,6 +26,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   const sessionExpired = searchParams.get('reason') === 'session_expired';
+  const passwordReset = searchParams.get('reason') === 'password_reset';
   const sellIntent = searchParams.get('reason') === 'sell';
   const nextPath = safeNextPath(searchParams.get('next'));
 
@@ -56,6 +57,12 @@ function LoginForm() {
         </p>
       ) : null}
 
+      {passwordReset ? (
+        <p className="mb-4 rounded-md border border-border bg-accent-muted/40 px-3 py-2 text-sm text-foreground">
+          Password updated. Log in with your new password.
+        </p>
+      ) : null}
+
       {sellIntent ? (
         <p className="mb-4 rounded-md border border-border bg-accent-muted/40 px-3 py-2 text-sm text-foreground">
           Log in to apply as a maker. New here? Create an account first, then you’ll continue to the
@@ -82,6 +89,11 @@ function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        <p className="m-0 text-right text-sm">
+          <Link href="/forgot-password" className="text-muted underline-offset-2 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
         {error ? <p className="m-0 text-danger">{error}</p> : null}
         <Button type="submit" loading={loading}>
           Log in

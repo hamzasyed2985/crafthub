@@ -28,6 +28,8 @@ const envSchema = z.object({
   E2E_AI_MOCK: z.string().optional().default(''),
   AI_RATE_LIMIT_PER_MIN: z.coerce.number().default(30),
   AI_MAX_TOKENS: z.coerce.number().default(600),
+  AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().default(20),
+  CHECKOUT_RATE_LIMIT_PER_MIN: z.coerce.number().default(10),
 });
 
 const parsed = envSchema.safeParse(process.env);

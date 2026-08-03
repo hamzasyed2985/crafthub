@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ApiErrorBody } from '@crafthub/shared';
+import type { RequestWithId } from '../middleware/request-id.js';
 
 export class AppError extends Error {
   constructor(
@@ -19,17 +20,22 @@ export function sendError(
   code: string,
   message: string,
   details?: unknown,
+  requestId?: string,
 ) {
-  const body: ApiErrorBody = { error: { code, message, details } };
+  const body: ApiErrorBody = {
+    error: { code, message, details },
+    ...(requestId ? { requestId } : {}),
+  };
   res.status(status).json(body);
 }
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+  const requestId = (req as RequestWithId).requestId;
   if (err instanceof AppError) {
-    sendError(res, err.status, err.code, err.message, err.details);
+    sendError(res, err.status, err.code, err.message, err.details, requestId);
     return;
   }
 
   console.error(err);
-  sendError(res, 500, 'INTERNAL_ERROR', 'Something went wrong');
+  sendError(res, 500, 'INTERNAL_ERROR', 'Something went wrong', undefined, requestId);
 }

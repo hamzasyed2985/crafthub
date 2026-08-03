@@ -96,8 +96,35 @@ const CART_SESSION_KEY = 'crafthub_cart_session';
 function isCredentialAuthPath(path: string) {
   return (
     path.startsWith('/api/v1/auth/login') ||
-    path.startsWith('/api/v1/auth/register')
+    path.startsWith('/api/v1/auth/register') ||
+    path.startsWith('/api/v1/auth/refresh') ||
+    path.startsWith('/api/v1/auth/forgot-password') ||
+    path.startsWith('/api/v1/auth/reset-password')
   );
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function tryRefreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as AuthResponse;
+      persistAccessToken(body.data.accessToken);
+      return body.data.accessToken;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 function redirectToLoginForExpiredSession() {
@@ -185,17 +212,25 @@ function authHeaders(): HeadersInit {
   return headers;
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function api<T>(
+  path: string,
+  init?: RequestInit & { _retried?: boolean },
+): Promise<T> {
+  const { _retried, ...fetchInit } = init ?? {};
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
-    ...init,
+    ...fetchInit,
     headers: {
       ...authHeaders(),
-      ...(init?.headers ?? {}),
+      ...(fetchInit.headers ?? {}),
     },
   });
   if (!res.ok) {
-    if (res.status === 401 && !isCredentialAuthPath(path)) {
+    if (res.status === 401 && !isCredentialAuthPath(path) && !_retried) {
+      const refreshed = await tryRefreshAccessToken();
+      if (refreshed) {
+        return api<T>(path, { ...fetchInit, _retried: true });
+      }
       redirectToLoginForExpiredSession();
     }
     throw new Error(await parseError(res));
@@ -244,6 +279,20 @@ export async function logout() {
     // Still clear local session even if the API call fails
   }
   clearAccessToken();
+}
+
+export async function forgotPassword(email: string) {
+  return api<{ data: { ok: boolean; message: string } }>('/api/v1/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(input: { token: string; password: string }) {
+  return api<{ data: { ok: boolean } }>('/api/v1/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export async function fetchCategories() {

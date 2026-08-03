@@ -11,6 +11,7 @@ import { getStripe } from '../../lib/stripe.js';
 import { env } from '../../env.js';
 import { requireAuth, type AuthedRequest } from '../../middleware/auth.js';
 import { enqueueReservationExpiry } from '../../lib/queue.js';
+import { checkRateLimit, clientIp } from '../../lib/rate-limit.js';
 
 export const checkoutRouter = Router();
 
@@ -22,6 +23,18 @@ checkoutRouter.use(requireAuth);
  */
 checkoutRouter.post('/session', async (req: AuthedRequest, res, next) => {
   try {
+    const limit = checkRateLimit(
+      `checkout:${req.user!.sub}:${clientIp(req)}`,
+      env.CHECKOUT_RATE_LIMIT_PER_MIN,
+    );
+    if (!limit.ok) {
+      throw new AppError(
+        429,
+        'RATE_LIMITED',
+        `Too many checkout attempts. Retry in ${limit.retryAfterSec}s`,
+      );
+    }
+
     const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.sub } });
     if (user.status === 'banned') {
       throw new AppError(403, 'BANNED', 'This account has been banned');

@@ -4,6 +4,7 @@ export type ApiErrorBody = {
     message: string;
     details?: unknown;
   };
+  requestId?: string;
 };
 
 export type PaginatedMeta = {
