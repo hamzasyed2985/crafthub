@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter @crafthub/shared build && pnpm --filter @crafthub/ui build && pnpm --filter @crafthub/web build"
+}

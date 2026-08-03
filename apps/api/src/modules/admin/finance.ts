@@ -9,6 +9,9 @@ import { requireAuth, requireRole, type AuthedRequest } from '../../middleware/a
 
 export const adminFinanceRouter = Router();
 
+/** Explicit element typing so tsc stays happy if Prisma client types are unavailable in CI. */
+type Elem<T> = T extends readonly (infer U)[] ? U : never;
+
 adminFinanceRouter.use(requireAuth, requireRole('admin'));
 
 adminFinanceRouter.get('/metrics', async (_req, res, next) => {
@@ -175,7 +178,7 @@ adminFinanceRouter.get('/orders', async (req, res, next) => {
     ]);
 
     res.json({
-      data: rows.map((o) => ({
+      data: rows.map((o: Elem<typeof rows>) => ({
         id: o.id,
         status: o.status,
         totalCents: o.totalCents,
@@ -221,13 +224,13 @@ adminFinanceRouter.get('/orders/:id', async (req, res, next) => {
     if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
 
     const vendorDebts = await Promise.all(
-      order.vendorOrders.map(async (vo) => ({
+      order.vendorOrders.map(async (vo: Elem<typeof order.vendorOrders>) => ({
         vendorId: vo.vendorId,
         outstandingDebtCents: await getVendorOutstandingDebtCents(vo.vendorId),
       })),
     );
     const debtByVendor = Object.fromEntries(
-      vendorDebts.map((d) => [d.vendorId, d.outstandingDebtCents]),
+      vendorDebts.map((d: Elem<typeof vendorDebts>) => [d.vendorId, d.outstandingDebtCents]),
     );
 
     res.json({
@@ -258,7 +261,7 @@ adminFinanceRouter.get('/orders/:id', async (req, res, next) => {
                 checkoutSessionId: order.payment.checkoutSessionId,
               }
             : null,
-          vendorOrders: order.vendorOrders.map((vo) => ({
+          vendorOrders: order.vendorOrders.map((vo: Elem<typeof order.vendorOrders>) => ({
             id: vo.id,
             status: vo.status,
             vendor: vo.vendor,
@@ -274,7 +277,7 @@ adminFinanceRouter.get('/orders/:id', async (req, res, next) => {
                   stripeTransferId: vo.transfer.stripeTransferId,
                 }
               : null,
-            items: vo.items.map((item) => ({
+            items: vo.items.map((item: Elem<typeof vo.items>) => ({
               id: item.id,
               title: item.title,
               quantity: item.quantity,
@@ -316,7 +319,7 @@ adminFinanceRouter.post('/orders/:id/refund', async (req: AuthedRequest, res, ne
           id: order.id,
           status: order.status,
           paymentStatus: order.payment?.status ?? null,
-          vendorOrders: order.vendorOrders.map((vo) => ({
+          vendorOrders: order.vendorOrders.map((vo: Elem<typeof order.vendorOrders>) => ({
             id: vo.id,
             status: vo.status,
             vendorId: vo.vendorId,
@@ -349,7 +352,7 @@ adminFinanceRouter.get('/audit-logs', async (req, res, next) => {
     ]);
 
     res.json({
-      data: rows.map((r) => ({
+      data: rows.map((r: Elem<typeof rows>) => ({
         id: r.id,
         action: r.action,
         entity: r.entity,
@@ -385,7 +388,7 @@ adminFinanceRouter.get('/vendors/:id/ledger', async (req, res, next) => {
         vendorId: id,
         outstandingDebtCents,
         ledgerReviewRequired: vendor.ledgerReviewRequired,
-        entries: entries.map((e) => ({
+        entries: entries.map((e: Elem<typeof entries>) => ({
           id: e.id,
           kind: e.kind,
           amountCents: e.amountCents,
@@ -447,15 +450,15 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
       }),
     ]);
 
-    const vendorIds = byVendorRaw.map((r) => r.vendorId);
+    const vendorIds = byVendorRaw.map((r: Elem<typeof byVendorRaw>) => r.vendorId);
     const vendors = await prisma.vendorProfile.findMany({
       where: { id: { in: vendorIds } },
       select: { id: true, displayName: true, slug: true, ledgerReviewRequired: true },
     });
-    const vendorMap = Object.fromEntries(vendors.map((v) => [v.id, v]));
+    const vendorMap = Object.fromEntries(vendors.map((v: Elem<typeof vendors>) => [v.id, v]));
 
     const debts = await Promise.all(
-      vendorIds.map(async (id) => [id, await getVendorOutstandingDebtCents(id)] as const),
+      vendorIds.map(async (id: Elem<typeof vendorIds>) => [id, await getVendorOutstandingDebtCents(id)] as const),
     );
     const debtMap = Object.fromEntries(debts);
 
@@ -468,7 +471,7 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
     }
 
     const byVendor = byVendorRaw
-      .map((r) => {
+      .map((r: Elem<typeof byVendorRaw>) => {
         const v = vendorMap[r.vendorId];
         return {
           vendorId: r.vendorId,
@@ -492,14 +495,14 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
           debtReviewThresholdCents: settings.debtReviewThresholdCents,
         },
         totals: {
-          platformRevenueCents: byVendor.reduce((n, v) => n + v.commissionCents, 0),
-          gmvCents: byVendor.reduce((n, v) => n + v.gmvCents, 0),
+          platformRevenueCents: byVendor.reduce((n: number, v: Elem<typeof byVendor>) => n + v.commissionCents, 0),
+          gmvCents: byVendor.reduce((n: number, v: Elem<typeof byVendor>) => n + v.gmvCents, 0),
           paidOutCents: transfersAgg._sum.amountCents ?? 0,
           paidTransferCount: transfersAgg._count,
           outstandingVendorDebtCents: Math.max(0, debt - offset),
         },
         byVendor,
-        recentCommissions: recent.map((vo) => ({
+        recentCommissions: recent.map((vo: Elem<typeof recent>) => ({
           vendorOrderId: vo.id,
           orderId: vo.orderId,
           orderStatus: vo.order.status,
