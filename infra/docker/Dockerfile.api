@@ -1,11 +1,14 @@
 # CraftHub API — build from monorepo root:
 #   docker build -f infra/docker/Dockerfile.api -t crafthub-api .
 FROM node:20-bookworm-slim AS base
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 FROM base AS build
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
@@ -17,7 +20,6 @@ RUN pnpm install --frozen-lockfile
 COPY apps/api apps/api
 COPY packages/db packages/db
 COPY packages/shared packages/shared
-# Prisma needs schema; generate client into the workspace
 RUN pnpm --filter @crafthub/shared build \
   && pnpm --filter @crafthub/db generate \
   && pnpm --filter @crafthub/db build \
