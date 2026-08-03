@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { env } from '../env.js';
@@ -41,9 +41,11 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function signAccessToken(payload: AccessTokenPayload): Promise<string> {
+  // jti makes each issue unique even when claims + iat second are identical (fast refresh).
   return new SignJWT({ email: payload.email, role: payload.role })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.sub)
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(env.JWT_ACCESS_TTL)
     .sign(secret);

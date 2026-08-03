@@ -141,15 +141,27 @@ describe('e2e · auth edges', () => {
     const refresh = cookieFromSetCookie(registered.headers, 'refresh_token');
     expect(refresh).toBeTruthy();
 
-    const refreshed = await expectOk<{ data: { accessToken: string } }>('/api/v1/auth/refresh', {
+    const rotated = await api<{ data: { accessToken: string } }>('/api/v1/auth/refresh', {
       method: 'POST',
       cookie: `refresh_token=${refresh}`,
     });
-    expect(refreshed.data.accessToken).toBeTruthy();
-    expect(refreshed.data.accessToken).not.toBe(registered.body.data.accessToken);
+    expect(rotated.status).toBe(200);
+    expect(rotated.body.data.accessToken).toBeTruthy();
+    expect(rotated.body.data.accessToken).not.toBe(registered.body.data.accessToken);
+
+    const newRefresh = cookieFromSetCookie(rotated.headers, 'refresh_token');
+    expect(newRefresh).toBeTruthy();
+    expect(newRefresh).not.toBe(refresh);
+
+    // Old refresh must be rejected after rotation.
+    const reuse = await api<{ error: { code: string } }>('/api/v1/auth/refresh', {
+      method: 'POST',
+      cookie: `refresh_token=${refresh}`,
+    });
+    expect(reuse.status).toBe(401);
 
     const me = await expectOk<{ data: { user: { email: string } } }>('/api/v1/auth/me', {
-      token: refreshed.data.accessToken,
+      token: rotated.body.data.accessToken,
     });
     expect(me.data.user.email).toBe(email);
   });
