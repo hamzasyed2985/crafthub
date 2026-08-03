@@ -1,14 +1,6 @@
-function normalizeApiBaseUrl(raw: string): string {
-  let url = raw.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(url)) {
-    url = `https://${url}`;
-  }
-  return url;
-}
+import { getApiBaseUrl } from './api-base-url';
 
-const API_URL = normalizeApiBaseUrl(
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
-);
+const API_URL = getApiBaseUrl();
 
 export type AuthUser = {
   id: string;

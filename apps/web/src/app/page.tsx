@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Button, ProductCard } from '@crafthub/ui';
 import { Page } from '@/components/page';
+import { getApiBaseUrl } from '@/lib/api-base-url';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = getApiBaseUrl();
 
 type ProductRow = {
   id: string;

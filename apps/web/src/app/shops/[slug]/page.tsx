@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Page } from '@/components/page';
 import { ShopProducts } from '@/components/shop-products';
+import { getApiBaseUrl } from '@/lib/api-base-url';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = getApiBaseUrl();
 
 type ShopPayload = {
   data: {

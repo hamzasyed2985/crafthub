@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
 import type { ProductDto } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/api-base-url';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 import { ProductGallery } from '@/components/product-gallery';
 import { ProductReviews } from '@/components/product-reviews';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = getApiBaseUrl();
 
 async function loadProduct(shopSlug: string, productSlug: string) {
   const res = await fetch(`${API_URL}/api/v1/shops/${shopSlug}/products/${productSlug}`, {
