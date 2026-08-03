@@ -30,6 +30,7 @@ const envSchema = z.object({
   AI_MAX_TOKENS: z.coerce.number().default(600),
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().default(20),
   CHECKOUT_RATE_LIMIT_PER_MIN: z.coerce.number().default(10),
+  SENTRY_DSN: z.string().optional().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

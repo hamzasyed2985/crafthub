@@ -8,7 +8,10 @@ import { stripeWebhookRouter } from './modules/webhooks/stripe.js';
 import { env } from './env.js';
 import { AppError, errorHandler, sendError } from './lib/errors.js';
 import { logger } from './lib/logger.js';
+import { initSentry, captureException } from './lib/sentry.js';
 import { requestIdMiddleware, type RequestWithId } from './middleware/request-id.js';
+
+initSentry();
 
 const app = express();
 
@@ -54,17 +57,21 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
     );
     return;
   }
+  if (!(err instanceof AppError) || err.status >= 500) {
+    captureException(err, { requestId: (req as RequestWithId).requestId });
+  }
   errorHandler(err, req, res, next);
 });
 
 app.listen(env.listenPort, () => {
   logger.info(
-    { stripeMock: env.useStripeMock, port: env.listenPort },
+    { stripeMock: env.useStripeMock, port: env.listenPort, sentry: Boolean(env.SENTRY_DSN) },
     `CraftHub API listening on :${env.listenPort}`,
   );
 });
 
 process.on('unhandledRejection', (reason) => {
+  captureException(reason);
   logger.error({ reason }, 'Unhandled rejection');
 });
 

@@ -14,6 +14,8 @@ Build in phases. Each phase has a **verify** gate before moving on.
 | 6.5 | AI | Embeddings + Concierge + Listing Copilot | `ai.e2e` — real product IDs + draft fields |
 | 7 | Scale & ship | Caching, Sentry, staging+prod, load notes | Public URL + README case study |
 
+**Phase 7 status (portfolio Path A):** public Vercel + Railway demo live; Sentry optional via `SENTRY_DSN`; Redis used for queues (not HTTP cache); load notes in [13-deployment](./13-deployment.md); full staging/prod split and Redis response caching deferred.
+
 ## Phase notes
 
 ### 0 — Foundation

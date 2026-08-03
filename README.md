@@ -1,16 +1,60 @@
 # CraftHub
 
+[![CI](https://github.com/hamzasyed2985/crafthub/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzasyed2985/crafthub/actions/workflows/ci.yml)
+
 Local-artisan **multi-vendor marketplace**: independent sellers run storefronts, manage inventory, and get paid out after CraftHub takes a commission.
+
+**Live demo:** [https://crafthub-api-five.vercel.app](https://crafthub-api-five.vercel.app)  
+**API:** `https://api-production-f1f6.up.railway.app` (`/health`, `/ready`)
+
+## Case study (portfolio)
+
+### Problem
+Local makers need a shared storefront with real checkout, per-vendor payouts, and admin controls — without standing up a full microservice fleet.
+
+### Approach
+A **modular monolith**: Next.js storefront (Vercel) + Express API + BullMQ worker (Railway) on Postgres + Redis. Shared Zod schemas, Prisma domain models, Stripe Connect for marketplace money movement, and optional Groq-backed listing/search assistants.
+
+```mermaid
+flowchart LR
+  Browser --> Web["Vercel Next.js"]
+  Web --> API["Railway Express API"]
+  API --> PG[(Postgres)]
+  API --> Redis[(Redis)]
+  Worker["Railway BullMQ worker"] --> Redis
+  Worker --> PG
+  API --> Stripe["Stripe Connect"]
+  Stripe -->|webhooks| API
+```
+
+### Why not microservices yet
+Connect webhooks, inventory reservations, and vendor ledgers share one transaction boundary. Splitting checkout across services early adds ops cost without portfolio upside. Queues isolate slow work (email, embeddings, reservation TTL) without network hops for every request.
+
+### Tradeoffs
+| Choice | Upside | Cost |
+|--------|--------|------|
+| Modular monolith | Fast delivery, one deploy story for API | Scale vertical first |
+| Redis + BullMQ | Reliable delayed jobs | Not used as a response cache |
+| Stripe mock adapter | E2E without keys | Flip to test keys for real Checkout |
+| Groq free chat | Concierge/copilot without OpenAI spend | Rate limits; embeddings stay mock unless OpenAI |
+
+### Loom script (record ~3–5 min)
+1. **Buyer** — Explore → product → cart → checkout (mock or test card) → order page  
+2. **Vendor** — login pottery → orders → mark shipped with tracking → earnings  
+3. **Admin** — metrics → finance → approve a pending vendor (optional)  
+4. **AI** — Concierge ask for a mug; vendor “Generate listing” from notes  
+
+Seed logins are below (demo only — rotate for any real production).
 
 ## Documentation
 
 All project specs live in **[docs/](./docs/README.md)** — one topic per file.
 
-Start here: [docs/01-overview.md](./docs/01-overview.md)
+Start here: [docs/01-overview.md](./docs/01-overview.md) · Deploy notes: [docs/13-deployment.md](./docs/13-deployment.md)
 
 ## Stack
 
-Next.js · Tailwind CSS · Express · PostgreSQL · Redis · BullMQ · Stripe Connect · Docker · GitHub Actions · TypeScript
+Next.js · Tailwind CSS · Express · PostgreSQL · Redis · BullMQ · Stripe Connect · Docker · GitHub Actions · TypeScript · Sentry (optional DSN)
 
 ## Repo layout
 
@@ -18,7 +62,7 @@ Next.js · Tailwind CSS · Express · PostgreSQL · Redis · BullMQ · Stripe Co
 apps/
   web/       # Next.js (buyer, vendor, admin)
   api/       # Express API
-  worker/    # BullMQ consumers (reservation expiry)
+  worker/    # BullMQ consumers (reservation expiry, email, embeddings)
 packages/
   db/        # Prisma schema + client
   shared/    # Zod schemas, enums
@@ -73,8 +117,8 @@ Admin finance: `/admin/finance` (commission by vendor + sources). Seed includes 
 
 ### Real Stripe test mode
 
-1. Put `sk_test_…`, `pk_test_…`, and `whsec_…` in `.env`; unset `E2E_STRIPE_MOCK`
-2. Forward webhooks: `stripe listen --forward-to localhost:4000/webhooks/stripe`
+1. Put `sk_test_…`, `pk_test_…`, and `whsec_…` in `.env`; unset `E2E_STRIPE_MOCK` (or `0`)
+2. Forward webhooks: `stripe listen --forward-to localhost:4000/webhooks/stripe` (local) or Dashboard → endpoint `https://YOUR-API/webhooks/stripe` (Railway)
 3. Complete Express onboarding for each vendor, then pay with test card `4242 4242 4242 4242`
 
 Never mark an order paid from the browser success URL alone — webhooks are the source of truth.
@@ -125,10 +169,10 @@ Grounded retrieval over catalog embeddings (mock by default). **Chat** uses free
 
 ```bash
 # 1. Create a free key at https://console.groq.com/keys
-# 2. In .env:
+# 2. In .env / Railway API:
 #    GROQ_API_KEY=gsk_...
 #    E2E_AI_MOCK=0
-# 3. Restart the API
+# 3. Restart / redeploy the API
 
 # Optional: sync-index embeddings as admin
 # POST /api/v1/ai/embeddings/reindex?sync=1
@@ -143,6 +187,17 @@ Verify:
 3. Admin reindex reports embeddings ≈ active products  
 
 See [docs/15-ai-features.md](./docs/15-ai-features.md).
+
+## Phase 7 — Deployed demo
+
+| Piece | Host |
+|-------|------|
+| Web | Vercel (`apps/web`) |
+| API + worker | Railway (Dockerfiles under `infra/docker/`) |
+| Postgres + Redis | Railway plugins |
+| Errors | Sentry when `SENTRY_DSN` is set on the API |
+
+`NEXT_PUBLIC_API_URL` must include `https://`. Railway `APP_URL` / `CORS_ORIGIN` must match the Vercel origin exactly.
 
 ## Roadmap
 
