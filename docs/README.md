@@ -6,6 +6,8 @@
 
 Start with [01 — Overview](./01-overview.md), then work top-to-bottom. Each file is one topic.
 
+**Looking for “what’s left?” (engineering checklist, not launch todo)** → **[16 — Production-grade engineering](./16-production-readiness.md)**.
+
 | # | Doc | What it covers |
 |---|-----|----------------|
 | 01 | [Overview](./01-overview.md) | Vision, users, scope, success criteria |
@@ -23,12 +25,13 @@ Start with [01 — Overview](./01-overview.md), then work top-to-bottom. Each fi
 | 13 | [Deployment](./13-deployment.md) | Environments & ship checklist |
 | 14 | [Roadmap](./14-roadmap.md) | Build phases & verification |
 | 15 | [AI features](./15-ai-features.md) | Concierge, listing copilot — not a generic bot |
+| 16 | [Production-grade engineering](./16-production-readiness.md) | Portfolio goal: built like prod apps; **not** a real launch |
 
 ## Quick stack
 
 - **Web:** Next.js (App Router) + TypeScript + Tailwind
 - **API:** Node.js + Express (modular monolith)
 - **DB:** PostgreSQL + Prisma
-- **Cache / jobs:** Redis + BullMQ
+- **Jobs:** Redis + BullMQ (queues — not HTTP cache)
 - **Payments:** Stripe Connect (marketplace)
-- **Ops:** Docker Compose, GitHub Actions, Sentry
+- **Ops:** Docker Compose, GitHub Actions, optional Sentry

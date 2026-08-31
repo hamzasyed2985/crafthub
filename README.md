@@ -44,13 +44,13 @@ Connect webhooks, inventory reservations, and vendor ledgers share one transacti
 3. **Admin** — metrics → finance → approve a pending vendor (optional)  
 4. **AI** — Concierge ask for a mug; vendor “Generate listing” from notes  
 
-Seed logins are below (demo only — rotate for any real production).
+Seed logins are below (intentional demo accounts for the portfolio URL).
 
 ## Documentation
 
 All project specs live in **[docs/](./docs/README.md)** — one topic per file.
 
-Start here: [docs/01-overview.md](./docs/01-overview.md) · Deploy notes: [docs/13-deployment.md](./docs/13-deployment.md)
+Start here: [docs/01-overview.md](./docs/01-overview.md) · Deploy: [docs/13-deployment.md](./docs/13-deployment.md) · **What’s left (optional engineering polish):** [docs/16-production-readiness.md](./docs/16-production-readiness.md)
 
 ## Stack
 

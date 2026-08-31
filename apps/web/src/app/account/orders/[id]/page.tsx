@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
 import { confirmOrderPayment, fetchOrder, readAccessToken, type OrderDto } from '@/lib/api';
-import { formatStatusLabel } from '@/lib/format-status';
+import { formatBuyerOrderStatus, formatBuyerVendorSliceStatus } from '@/lib/format-status';
 
 export default function AccountOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -61,7 +61,7 @@ export default function AccountOrderDetailPage() {
       </Link>
       <h1 className="mt-4 font-display text-3xl">Order detail</h1>
       <p className="mt-2 text-muted">
-        Status <strong>{formatStatusLabel(order.status)}</strong> · <Price cents={order.totalCents} />
+        Status <strong>{formatBuyerOrderStatus(order.status)}</strong> · <Price cents={order.totalCents} />
       </p>
       <p className="mt-2 text-sm text-subtle">
         Ship to {order.shipping.name}, {order.shipping.line1}, {order.shipping.city}{' '}
@@ -87,7 +87,12 @@ export default function AccountOrderDetailPage() {
             <Link href={`/shops/${vo.vendor.slug}`} className="font-display text-xl hover:text-accent">
               {vo.vendor.displayName}
             </Link>
-            <p className="text-sm text-muted">Vendor status: {formatStatusLabel(vo.status)}</p>
+            <p className="text-sm text-muted">{formatBuyerVendorSliceStatus(vo.status)}</p>
+            {vo.status === 'fulfilling' && vo.fulfillingAt ? (
+              <p className="mt-1 text-sm text-subtle">
+                Started {new Date(vo.fulfillingAt).toLocaleString()}
+              </p>
+            ) : null}
             {vo.status === 'shipped' && (vo.trackingNumber || vo.shippedAt) ? (
               <p className="mt-1 text-sm text-muted">
                 {vo.shippedAt ? `Shipped ${new Date(vo.shippedAt).toLocaleString()}` : 'Shipped'}

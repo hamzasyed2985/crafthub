@@ -128,3 +128,5 @@ Single API replica is enough for portfolio traffic. Expected hotspots if load gr
 2. Copy DSN → Railway **api** `SENTRY_DSN=`  
 3. Redeploy; unhandled 5xx and rejections are reported  
 4. Leave unset locally if you do not want noise  
+
+See also **[16 — Production-grade engineering](./16-production-readiness.md)** (portfolio goal — test Stripe is enough; live launch items are out of scope).

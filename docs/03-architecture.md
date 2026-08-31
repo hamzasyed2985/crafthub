@@ -2,88 +2,97 @@
 
 ## Style: modular monolith
 
-One Express API process, organized by **bounded contexts**. Same database, shared transactions where money and inventory meet. Workers run as a separate process, same codebase.
+One Express API process, organized by **bounded contexts**. Same PostgreSQL database; shared transactions where money and inventory meet. Workers run as a **separate process**, same monorepo.
 
 ```
 Browser
-  └─ Next.js (web)
-        ├─ SSR / RSC pages
-        └─ BFF route handlers (optional cookie bridge)
-              └─ Express API
-                    ├─ Auth
-                    ├─ Catalog (products, shops)
+  └─ Next.js (web) — Vercel
+        ├─ Client components → REST + Bearer + cookies
+        └─ SSR pages (home, shop, PDP) → REST
+              └─ Express API — Railway
+                    ├─ Auth (JWT + refresh rotation, password reset)
+                    ├─ Catalog (products, shops, search, reviews)
                     ├─ Cart
                     ├─ Checkout / Orders
-                    ├─ Payments (Stripe Connect)
-                    ├─ Inventory
-                    ├─ Vendors
-                    ├─ Admin
+                    ├─ Payments (Stripe Connect + webhooks)
+                    ├─ Inventory (reservations)
+                    ├─ Vendors / Admin / Finance
+                    ├─ AI (concierge, listing copilot, embeddings)
                     └─ Notifications (enqueue only)
                           └─ Redis / BullMQ → Worker
-                                ├─ Email
-                                ├─ Webhook retries
-                                └─ Payout jobs
+                                ├─ Reservation expiry (sweep + delayed jobs)
+                                ├─ Email outbox (mock delivery today)
+                                └─ Embedding reindex jobs
 ```
 
 ## Processes
 
 | Process | Responsibility |
 |---------|----------------|
-| `web` | UI, SEO pages, auth pages, uploads via signed URLs |
-| `api` | Business logic, REST, webhook HTTP endpoints |
-| `worker` | Async jobs (email, Stripe event reprocessing) |
-| `postgres` | Source of truth |
-| `redis` | Cache, queues, rate limits |
+| `web` | UI, SEO pages, auth pages, Explore filters, Concierge drawer |
+| `api` | Business logic, REST, Stripe webhook HTTP endpoint |
+| `worker` | Async jobs (reservations, email outbox, embeddings) |
+| `postgres` | Source of truth (Prisma) |
+| `redis` | **BullMQ queues only** — not HTTP response cache |
 
 ## Happy path — purchase
 
 1. Buyer adds items (possibly from multiple vendors) to cart  
-2. Checkout creates **one payment** (or one PaymentIntent with transfer group) via Stripe Connect  
-3. Platform records `Order` + `OrderItems` per vendor (`VendorOrder` / sub-orders)  
+2. Checkout creates **one Stripe Checkout Session** per cart  
+3. Platform records `Order` + per-vendor `VendorOrder` slices  
 4. Stripe webhook confirms payment → order `paid`  
-5. Inventory reservations convert to decrements  
-6. Vendor dashboards show new orders  
-7. After fulfillment / payout schedule, vendor balance is transferred (Connect destination charges or separate transfers)
+5. Inventory reservations convert to stock decrements  
+6. Vendor dashboards show new orders; Connect transfers recorded  
+7. Vendor fulfills → buyer tracks shipment; optional review after ship  
 
-## Multi-vendor cart strategy (recommended MVP)
+## Multi-vendor checkout
 
-**Option A — Single checkout, split internally (recommended)**  
-One Stripe payment; application fee = commission; destination charge or transfer to each vendor. More complex but better UX.
-
-**Option B — Per-vendor checkout**  
-Simpler payments, worse UX (buyer pays N times). Acceptable for early spike only.
-
-Document which you choose in the README. Prefer **Option A** for portfolio strength.
+**Option A — Single checkout, split internally (implemented)**  
+One Stripe payment; platform commission; transfers per vendor slice. Better UX and what CraftHub ships.
 
 ## Module boundaries
 
 | Module | Owns | Must not own |
 |--------|------|--------------|
-| Catalog | Products, categories, media | Payment capture |
+| Catalog | Products, categories, media, search | Payment capture |
 | Vendors | Shop profile, onboarding, Stripe account link | Platform commission config write (admin) |
 | Cart | Cart lines, guest cart | Order finalization |
-| Orders | Order state machine, line snapshots | Raw Stripe secrets |
+| Orders | Order state machine, line snapshots | Raw Stripe secrets in client |
 | Payments | Stripe SDK, webhooks, fee math | Email templates |
 | Inventory | Stock, reservations | UI |
-| Admin | Moderation, settings, force actions | Bypass webhook verification |
+| Admin | Moderation, settings, refunds, finance | Bypass webhook verification |
+| AI | Concierge, listing drafts, embeddings jobs | Auto-publish listings |
 
 ## Scaling path (later)
 
 When needed, extract:
 
 1. `worker` already separate  
-2. `payments-webhook` service (verify + enqueue only)  
+2. Webhook ingress service (verify + enqueue only)  
 3. Read replicas / Meilisearch for catalog  
+4. Redis or CDN for **HTTP** caching (not implemented today)  
 
 Do **not** split Orders and Inventory across networks until you have a real reason — they need shared transactions.
 
-## Cross-cutting
+## Cross-cutting (implemented)
 
-- **Idempotency keys** on checkout + webhook handlers  
-- **Outbox / job enqueue** after DB commit for emails  
-- **Health:** `GET /health` (liveness), `GET /ready` (DB + Redis)  
-- **Observability:** request IDs, Sentry, pino JSON logs  
+| Concern | Implementation |
+|---------|------------------|
+| Idempotency | Checkout `Idempotency-Key`; Stripe webhook event dedup |
+| Outbox | `email_outbox` + worker send |
+| Health | `GET /health` (liveness), `GET /ready` (Postgres `SELECT 1`) |
+| Request ID | `X-Request-Id` middleware; echoed on errors |
+| Observability | pino logs; optional Sentry (`SENTRY_DSN`) on API |
+| Rate limits | In-memory on auth + checkout + AI (per API instance) |
 
-## Diagram to put in README
+## Deploy diagram (current)
 
-Draw: Buyer → Web → API → Postgres; API → Redis → Worker; API ↔ Stripe; Vendor dashboard → same API with vendor RBAC.
+```
+Buyer → crafthub-api-five.vercel.app (web)
+     → api-production-….up.railway.app (api)
+     → Postgres + Redis (Railway)
+     → worker (Railway, no public URL)
+     ↔ Stripe (Connect + webhooks)
+```
+
+See [13 — Deployment](./13-deployment.md) and [16 — Production readiness](./16-production-readiness.md).

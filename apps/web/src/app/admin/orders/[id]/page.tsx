@@ -5,8 +5,22 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
-import { fetchAdminOrder, refundAdminOrder } from '@/lib/api';
+import { fetchAdminOrder, refundAdminOrder, retryAdminVendorTransfer } from '@/lib/api';
 import { formatStatusLabel } from '@/lib/format-status';
+
+type AdminOrderDetail = NonNullable<Awaited<ReturnType<typeof fetchAdminOrder>>>;
+type AdminVendorSlice = AdminOrderDetail['vendorOrders'][number];
+
+function canRetryTransfer(vo: AdminVendorSlice) {
+  if (vo.transfer?.status === 'failed') return true;
+  if (vo.transfer?.status === 'paid') return false;
+  if (vo.transfer) return false;
+  return (
+    vo.status !== 'awaiting_payment' &&
+    vo.status !== 'cancelled' &&
+    vo.status !== 'refunded'
+  );
+}
 
 export default function AdminOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -14,6 +28,7 @@ export default function AdminOrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState('Customer requested refund');
   const [busy, setBusy] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +53,26 @@ export default function AdminOrderDetailPage() {
       setNote(err instanceof Error ? err.message : 'Refund failed');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onRetryTransfer(vendorOrderId: string) {
+    setRetryingId(vendorOrderId);
+    setNote(null);
+    try {
+      const result = await retryAdminVendorTransfer(vendorOrderId);
+      setNote(
+        result.alreadyPaid
+          ? 'Transfer already paid.'
+          : result.transfer.status === 'paid'
+            ? 'Transfer succeeded.'
+            : `Transfer still ${formatStatusLabel(result.transfer.status)} — check vendor Stripe Connect onboarding.`,
+      );
+      setOrder(await fetchAdminOrder(params.id));
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'Retry failed');
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -68,6 +103,11 @@ export default function AdminOrderDetailPage() {
       <p className="mt-2 text-muted">
         {formatStatusLabel(order.status)} · <Price cents={order.totalCents} /> · {order.buyer.email}
       </p>
+      {order.payment ? (
+        <p className="mt-1 text-sm text-subtle">
+          Customer payment: {formatStatusLabel(order.payment.status)}
+        </p>
+      ) : null}
       <p className="mt-1 text-sm text-subtle">
         Ship to {order.shipping.name}, {order.shipping.line1}, {order.shipping.city}{' '}
         {order.shipping.postalCode}
@@ -82,7 +122,7 @@ export default function AdminOrderDetailPage() {
               <Price cents={vo.commissionCents} />
             </p>
             <p className="text-sm text-subtle">
-              Transfer {vo.transfer?.status ?? 'none'}
+              Vendor payout: {vo.transfer ? formatStatusLabel(vo.transfer.status) : 'not attempted'}
               {vo.transfer ? (
                 <>
                   {' '}
@@ -93,6 +133,18 @@ export default function AdminOrderDetailPage() {
               vendor debt <Price cents={vo.outstandingDebtCents} />
               {vo.vendor.ledgerReviewRequired ? ' · needs ledger review' : null}
             </p>
+            {canRetryTransfer(vo) ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                disabled={retryingId === vo.id}
+                onClick={() => void onRetryTransfer(vo.id)}
+              >
+                {retryingId === vo.id ? 'Retrying…' : 'Retry vendor payout'}
+              </Button>
+            ) : null}
             <ul className="mt-2 text-sm">
               {vo.items.map((item) => (
                 <li key={item.id}>
@@ -103,6 +155,8 @@ export default function AdminOrderDetailPage() {
           </section>
         ))}
       </div>
+
+      {note ? <p className="mt-6 text-sm">{note}</p> : null}
 
       {canRefund ? (
         <form onSubmit={(e) => void onRefund(e)} className="mt-8 space-y-3 border-t border-border pt-8">
@@ -121,7 +175,6 @@ export default function AdminOrderDetailPage() {
           <Button type="submit" size="sm" disabled={busy}>
             {busy ? 'Refunding…' : 'Refund order'}
           </Button>
-          {note ? <p className="text-sm">{note}</p> : null}
         </form>
       ) : null}
     </Page>

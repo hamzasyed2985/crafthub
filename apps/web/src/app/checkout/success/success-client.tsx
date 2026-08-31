@@ -12,7 +12,7 @@ import {
   simulateCheckoutPaid,
   type OrderDto,
 } from '@/lib/api';
-import { formatStatusLabel } from '@/lib/format-status';
+import { formatBuyerOrderStatus, formatBuyerVendorSliceStatus, formatStatusLabel } from '@/lib/format-status';
 
 export default function CheckoutSuccessPage() {
   const params = useSearchParams();
@@ -131,7 +131,7 @@ export default function CheckoutSuccessPage() {
         <div className="mt-8 space-y-3 rounded-md border border-border bg-elevated p-4">
           <p className="text-sm text-subtle">Order {order.id.slice(0, 8)}…</p>
           <p>
-            Status: <strong>{formatStatusLabel(order.status)}</strong>
+            Status: <strong>{formatBuyerOrderStatus(order.status)}</strong>
           </p>
           <p>
             Total: <Price cents={order.totalCents} />
@@ -139,7 +139,7 @@ export default function CheckoutSuccessPage() {
           <ul className="text-sm text-muted">
             {order.vendorOrders.map((vo) => (
               <li key={vo.id}>
-                {vo.vendor.displayName}: {formatStatusLabel(vo.status)} · <Price cents={vo.vendorNetCents} /> to maker
+                {vo.vendor.displayName}: {formatBuyerVendorSliceStatus(vo.status)}
               </li>
             ))}
           </ul>

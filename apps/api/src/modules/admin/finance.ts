@@ -4,7 +4,7 @@ import { adminRefundSchema, adminSettingsPatchSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
 import { getVendorOutstandingDebtCents } from '../../lib/ledger.js';
-import { refundOrder } from '../../lib/refunds.js';
+import { refundOrder, retryVendorOrderTransfer } from '../../lib/refunds.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../../middleware/auth.js';
 
 export const adminFinanceRouter = Router();
@@ -333,6 +333,33 @@ adminFinanceRouter.post('/orders/:id/refund', async (req: AuthedRequest, res, ne
     next(err);
   }
 });
+
+adminFinanceRouter.post(
+  '/vendor-orders/:vendorOrderId/retry-transfer',
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const vendorOrderId = routeParam(req.params.vendorOrderId);
+      const result = await retryVendorOrderTransfer({
+        vendorOrderId,
+        actorId: req.user!.sub,
+      });
+
+      res.json({
+        data: {
+          alreadyPaid: result.alreadyPaid,
+          transfer: {
+            id: result.transfer.id,
+            status: result.transfer.status,
+            amountCents: result.transfer.amountCents,
+            stripeTransferId: result.transfer.stripeTransferId,
+          },
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 adminFinanceRouter.get('/audit-logs', async (req, res, next) => {
   try {

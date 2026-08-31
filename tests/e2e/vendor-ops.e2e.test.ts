@@ -229,7 +229,7 @@ describe('e2e · vendor ops (phase 4)', () => {
         };
       };
     }>(`/api/v1/orders/${checkout.orderId}`, { token: buyer.accessToken });
-    expect(buyerOrder.data.order.status).toBe('processing');
+    expect(buyerOrder.data.order.status).toBe('completed');
     const buyerSlice = buyerOrder.data.order.vendorOrders.find((v) => v.id === vendorOrderId);
     expect(buyerSlice?.status).toBe('shipped');
     expect(buyerSlice?.trackingNumber).toBe('TRK-OPS-1');

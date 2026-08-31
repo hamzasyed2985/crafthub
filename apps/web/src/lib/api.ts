@@ -654,6 +654,23 @@ export async function refundAdminOrder(id: string, reason: string) {
   return body.data;
 }
 
+export async function retryAdminVendorTransfer(vendorOrderId: string) {
+  const body = await api<{
+    data: {
+      alreadyPaid: boolean;
+      transfer: {
+        id: string;
+        status: string;
+        amountCents: number;
+        stripeTransferId: string | null;
+      };
+    };
+  }>(`/api/v1/admin/vendor-orders/${vendorOrderId}/retry-transfer`, {
+    method: 'POST',
+  });
+  return body.data;
+}
+
 export async function fetchAdminAuditLogs(action?: string) {
   const qs = action ? `?action=${encodeURIComponent(action)}` : '';
   const body = await api<{

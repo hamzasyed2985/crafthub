@@ -39,7 +39,7 @@ Local makers lack an easy way to sell online with shared discovery, while buyers
 - Auth (buyer + vendor + admin), email notifications
 - Search / filters, reviews, dark mode design system
 - **AI:** Craft Concierge (catalog-grounded) + Vendor Listing Copilot — see [15 — AI](./15-ai-features.md)
-- Docker + CI/CD + deployed staging/prod
+- Docker + CI/CD + deployed demo (Vercel + Railway)
 
 ## Out of scope (v1)
 
@@ -55,7 +55,7 @@ Local makers lack an easy way to sell online with shared discovery, while buyers
 - Real Stripe test-mode Connect flow (buyer pays → vendor balance updates)
 - Admin can approve vendor and adjust commission
 - README with architecture diagram + tradeoffs
-- Green CI (lint, typecheck, tests, Docker build)
+- Green CI (typecheck + auth e2e smoke; see [12 — CI/CD](./12-ci-cd.md))
 - Short demo video: browse shop → checkout → vendor sees order → payout view
 
 ## Suggested branding notes
@@ -63,3 +63,7 @@ Local makers lack an easy way to sell online with shared discovery, while buyers
 - Name: **CraftHub**
 - Tone: warm, local, handmade — not corporate SaaS purple
 - Visual: clay / ink / linen neutrals; see [Design system](./10-design-system.md)
+
+## Production-grade engineering (portfolio)
+
+This is a **personal portfolio project** — built with the same architecture and patterns as production marketplace apps (webhooks, queues, RBAC, deploy), but **not** intended as a real product launch. Stripe **test mode** (or mock) is the target; see **[16 — Production-grade engineering](./16-production-readiness.md)** for what’s done vs optional polish.

@@ -208,3 +208,81 @@ export async function payoutVendorOrder(opts: {
     });
   }
 }
+
+/**
+ * Admin retry for a failed Connect transfer (or missing transfer on a paid slice).
+ * Deletes a failed transfer row and re-attempts payout.
+ */
+export async function retryVendorOrderTransfer(opts: {
+  vendorOrderId: string;
+  actorId: string;
+}) {
+  const vo = await prisma.vendorOrder.findUnique({
+    where: { id: opts.vendorOrderId },
+    include: {
+      transfer: true,
+      vendor: { include: { stripeAccount: true } },
+      order: true,
+    },
+  });
+  if (!vo) throw new AppError(404, 'NOT_FOUND', 'Vendor order not found');
+
+  if (
+    vo.order.status !== 'paid' &&
+    vo.order.status !== 'processing' &&
+    vo.order.status !== 'completed'
+  ) {
+    throw new AppError(
+      400,
+      'ORDER_NOT_PAYABLE',
+      `Cannot retry transfer for order status ${vo.order.status}`,
+    );
+  }
+
+  if (vo.status === 'cancelled' || vo.status === 'refunded' || vo.status === 'awaiting_payment') {
+    throw new AppError(
+      400,
+      'SLICE_NOT_PAYABLE',
+      `Cannot retry transfer for vendor slice status ${vo.status}`,
+    );
+  }
+
+  if (vo.transfer?.status === 'paid') {
+    return { transfer: vo.transfer, alreadyPaid: true as const };
+  }
+
+  if (vo.transfer?.status === 'failed') {
+    await prisma.transfer.delete({ where: { id: vo.transfer.id } });
+  } else if (vo.transfer) {
+    throw new AppError(
+      400,
+      'TRANSFER_NOT_RETRYABLE',
+      `Transfer status ${vo.transfer.status} cannot be retried`,
+    );
+  }
+
+  const transfer = await payoutVendorOrder({
+    vendorOrderId: vo.id,
+    orderId: vo.orderId,
+    vendorId: vo.vendorId,
+    vendorNetCents: vo.vendorNetCents,
+    currency: vo.order.currency,
+    destination: vo.vendor.stripeAccount?.stripeAccountId,
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: opts.actorId,
+      action: 'transfer.retry',
+      entity: 'vendor_order',
+      entityId: vo.id,
+      meta: {
+        orderId: vo.orderId,
+        transferStatus: transfer.status,
+        amountCents: transfer.amountCents,
+      },
+    },
+  });
+
+  return { transfer, alreadyPaid: false as const };
+}

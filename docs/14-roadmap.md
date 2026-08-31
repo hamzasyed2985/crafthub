@@ -16,6 +16,8 @@ Build in phases. Each phase has a **verify** gate before moving on.
 
 **Phase 7 status (portfolio Path A):** public Vercel + Railway demo live; Sentry optional via `SENTRY_DSN`; Redis used for queues (not HTTP cache); load notes in [13-deployment](./13-deployment.md); full staging/prod split and Redis response caching deferred.
 
+**What’s left for this portfolio build?** See **[16 — Production-grade engineering](./16-production-readiness.md)** — optional polish to match how prod teams build; **not** a launch checklist (no live Stripe, no real users).
+
 ## Phase notes
 
 ### 0 — Foundation

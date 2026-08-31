@@ -6,7 +6,7 @@ import { Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchOrders, readAccessToken, type OrderDto } from '@/lib/api';
-import { formatStatusLabel } from '@/lib/format-status';
+import { formatBuyerOrderStatus } from '@/lib/format-status';
 
 export default function AccountOrdersPage() {
   const [orders, setOrders] = useState<OrderDto[] | null>(null);
@@ -57,7 +57,7 @@ export default function AccountOrdersPage() {
           {orders.map((o) => (
             <li key={o.id} className="border-b border-border pb-4">
               <Link href={`/account/orders/${o.id}`} className="font-semibold hover:text-accent">
-                Order {o.id.slice(0, 8)}… · {formatStatusLabel(o.status)}
+                Order {o.id.slice(0, 8)}… · {formatBuyerOrderStatus(o.status)}
               </Link>
               <p className="text-sm text-muted">
                 {new Date(o.createdAt).toLocaleString()} · <Price cents={o.totalCents} />

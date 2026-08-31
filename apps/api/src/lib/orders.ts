@@ -1,5 +1,9 @@
-import { prisma } from '@crafthub/db';
-import { computeCommission, COMMISSION_BPS_DEFAULT } from '@crafthub/shared';
+import { prisma, type Prisma } from '@crafthub/db';
+import {
+  computeCommission,
+  COMMISSION_BPS_DEFAULT,
+  type VendorOrderStatus,
+} from '@crafthub/shared';
 import type { ShippingAddressInput } from '@crafthub/shared';
 import { AppError } from './errors.js';
 import { env } from '../env.js';
@@ -406,4 +410,78 @@ export async function expireReservations() {
   }
 
   return expired.length;
+}
+
+function isVendorSliceFulfilled(status: VendorOrderStatus): boolean {
+  switch (status) {
+    case 'shipped':
+    case 'delivered':
+      return true;
+    case 'awaiting_payment':
+    case 'paid':
+    case 'fulfilling':
+    case 'cancelled':
+    case 'refunded':
+      return false;
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+}
+
+function isVendorSliceInactive(status: VendorOrderStatus): boolean {
+  return status === 'cancelled' || status === 'refunded';
+}
+
+/**
+ * Keep parent Order status in sync with vendor slice fulfillment.
+ * - Any active slice in progress → processing (from paid)
+ * - All active slices shipped/delivered → completed
+ */
+export async function syncParentOrderFulfillmentStatus(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+): Promise<void> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    include: { vendorOrders: { select: { status: true } } },
+  });
+  if (!order) return;
+
+  if (
+    order.status === 'pending_payment' ||
+    order.status === 'cancelled' ||
+    order.status === 'refunded'
+  ) {
+    return;
+  }
+
+  const activeSlices = order.vendorOrders.filter((vo) => !isVendorSliceInactive(vo.status));
+  if (activeSlices.length === 0) return;
+
+  const allFulfilled = activeSlices.every((vo) => isVendorSliceFulfilled(vo.status));
+
+  if (allFulfilled) {
+    if (order.status !== 'completed') {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'completed' },
+      });
+    }
+    return;
+  }
+
+  const anyStarted =
+    activeSlices.some((vo) => isVendorSliceFulfilled(vo.status)) ||
+    activeSlices.some((vo) => vo.status === 'fulfilling');
+
+  if (anyStarted || activeSlices.some((vo) => vo.status === 'paid')) {
+    if (order.status === 'paid') {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'processing' },
+      });
+    }
+  }
 }

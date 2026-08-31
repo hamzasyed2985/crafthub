@@ -4,6 +4,7 @@ import { shipVendorOrderSchema, VENDOR_ORDER_STATUSES } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import { enqueueEmail } from '../../lib/email.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
+import { syncParentOrderFulfillmentStatus } from '../../lib/orders.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireVendor, type VendorRequest } from '../../middleware/vendor.js';
 
@@ -78,19 +79,6 @@ function serializeVendorOrder(vo: VendorOrderLoaded) {
     createdAt: vo.createdAt.toISOString(),
     updatedAt: vo.updatedAt.toISOString(),
   };
-}
-
-async function bumpParentOrderProcessing(
-  tx: Prisma.TransactionClient,
-  orderId: string,
-  currentStatus: string,
-) {
-  if (currentStatus === 'paid') {
-    await tx.order.update({
-      where: { id: orderId },
-      data: { status: 'processing' },
-    });
-  }
 }
 
 vendorOrdersRouter.get('/', async (req: VendorRequest, res, next) => {
@@ -169,7 +157,7 @@ vendorOrdersRouter.post('/:id/fulfill', async (req: VendorRequest, res, next) =>
         data: { status: 'fulfilling', fulfillingAt: now },
       });
 
-      await bumpParentOrderProcessing(tx, row.orderId, row.order.status);
+      await syncParentOrderFulfillmentStatus(tx, row.orderId);
 
       await tx.auditLog.create({
         data: {
@@ -225,7 +213,7 @@ vendorOrdersRouter.post('/:id/ship', async (req: VendorRequest, res, next) => {
         },
       });
 
-      await bumpParentOrderProcessing(tx, row.orderId, row.order.status);
+      await syncParentOrderFulfillmentStatus(tx, row.orderId);
 
       await tx.auditLog.create({
         data: {
