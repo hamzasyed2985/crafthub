@@ -42,6 +42,7 @@ export type ProductDto = {
       city: string | null;
       logoUrl: string | null;
       status: string;
+      chargesEnabled?: boolean;
     };
   };
   variants: Array<{
@@ -147,7 +148,13 @@ export type CartDto = {
   itemCount: number;
   currency: string;
   groups: Array<{
-    vendor: { id: string; displayName: string; slug: string; city: string | null };
+    vendor: {
+      id: string;
+      displayName: string;
+      slug: string;
+      city: string | null;
+      chargesEnabled?: boolean;
+    };
     shop: { id: string; flatShippingCents: number; shipsFromCity: string | null };
     items: Array<{
       id: string;
@@ -441,7 +448,18 @@ export async function deleteProductMedia(productId: string, mediaId: string) {
   await api(`/api/v1/vendor/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
 }
 
-export async function fetchAdminFinance() {
+export async function fetchAdminFinance(opts?: {
+  vendorPage?: number;
+  vendorLimit?: number;
+  recentPage?: number;
+  recentLimit?: number;
+}) {
+  const params = new URLSearchParams();
+  if (opts?.vendorPage) params.set('vendorPage', String(opts.vendorPage));
+  if (opts?.vendorLimit) params.set('vendorLimit', String(opts.vendorLimit));
+  if (opts?.recentPage) params.set('recentPage', String(opts.recentPage));
+  if (opts?.recentLimit) params.set('recentLimit', String(opts.recentLimit));
+  const qs = params.toString() ? `?${params}` : '';
   return api<{
     data: {
       settings: {
@@ -482,10 +500,15 @@ export async function fetchAdminFinance() {
         createdAt: string;
       }>;
     };
-  }>('/api/v1/admin/finance');
+    meta: {
+      byVendor: { total: number; page: number; limit: number };
+      recentCommissions: { total: number; page: number; limit: number };
+    };
+  }>(`/api/v1/admin/finance${qs}`);
 }
 
-export async function fetchAdminVendorLedger(vendorId: string) {
+export async function fetchAdminVendorLedger(vendorId: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   return api<{
     data: {
       vendorId: string;
@@ -502,7 +525,8 @@ export async function fetchAdminVendorLedger(vendorId: string) {
         createdAt: string;
       }>;
     };
-  }>(`/api/v1/admin/vendors/${vendorId}/ledger`);
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/admin/vendors/${vendorId}/ledger?${params}`);
 }
 
 export async function fetchAdminVendors(
@@ -671,8 +695,9 @@ export async function retryAdminVendorTransfer(vendorOrderId: string) {
   return body.data;
 }
 
-export async function fetchAdminAuditLogs(action?: string) {
-  const qs = action ? `?action=${encodeURIComponent(action)}` : '';
+export async function fetchAdminAuditLogs(action?: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (action?.trim()) params.set('action', action.trim());
   const body = await api<{
     data: Array<{
       id: string;
@@ -683,19 +708,36 @@ export async function fetchAdminAuditLogs(action?: string) {
       actor: { id: string; email: string; name: string | null } | null;
       createdAt: string;
     }>;
-  }>(`/api/v1/admin/audit-logs${qs}`);
-  return body.data;
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/admin/audit-logs?${params}`);
+  return body;
 }
 
-export async function searchCatalog(q: string, page = 1, limit = 24) {
+export async function searchCatalog(
+  q: string,
+  page = 1,
+  limit = 24,
+  shopPage = 1,
+  shopLimit = limit,
+) {
   const params = new URLSearchParams({
     q,
     page: String(page),
     limit: String(limit),
+    shopPage: String(shopPage),
+    shopLimit: String(shopLimit),
   });
   const body = await api<{
     data: { products: ProductDto[]; shops: VendorSummary[] };
-    meta: { totalProducts: number; totalShops: number; page: number; limit: number; q: string };
+    meta: {
+      totalProducts: number;
+      totalShops: number;
+      page: number;
+      limit: number;
+      shopPage: number;
+      shopLimit: number;
+      q: string;
+    };
   }>(`/api/v1/search?${params}`);
   return { ...body.data, meta: body.meta };
 }
@@ -709,12 +751,29 @@ export type ReviewDto = {
   createdAt: string;
 };
 
-export async function fetchProductReviews(productId: string) {
+export async function fetchProductReviews(productId: string, page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   const body = await api<{
     data: ReviewDto[];
-    meta: { total: number; averageRating: number | null; reviewCount: number };
-  }>(`/api/v1/products/${productId}/reviews`);
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      averageRating: number | null;
+      reviewCount: number;
+    };
+  }>(`/api/v1/products/${productId}/reviews?${params}`);
   return { reviews: body.data, meta: body.meta };
+}
+
+export async function fetchProductReviewEligibility(productId: string) {
+  const body = await api<{
+    data: {
+      eligible: boolean;
+      reason: 'UNAUTHENTICATED' | 'NOT_FOUND' | 'ALREADY_REVIEWED' | 'NOT_ELIGIBLE' | 'OK';
+    };
+  }>(`/api/v1/products/${productId}/reviews/eligibility`);
+  return body.data;
 }
 
 export async function createProductReview(
@@ -959,13 +1018,23 @@ export async function refreshVendorStripe() {
 export async function fetchVendorStripeStatus() {
   const body = await api<{
     data: {
+      accountId?: string | null;
       chargesEnabled: boolean;
       payoutsEnabled: boolean;
       onboardingComplete: boolean;
-      hasAccount?: boolean;
       mock?: boolean;
     };
   }>('/api/v1/vendor/stripe/status');
+  return body.data;
+}
+
+export async function openVendorStripeManage(action: 'update' | 'dashboard') {
+  const body = await api<{
+    data: { url: string; action: 'update' | 'dashboard' };
+  }>('/api/v1/vendor/stripe/manage', {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  });
   return body.data;
 }
 
@@ -1038,6 +1107,14 @@ export async function shipVendorOrder(
   return body.data.vendorOrder;
 }
 
+export async function deliverVendorOrder(id: string) {
+  const body = await api<{ data: { vendorOrder: VendorOrderDto } }>(
+    `/api/v1/vendor/orders/${id}/deliver`,
+    { method: 'POST', body: '{}' },
+  );
+  return body.data.vendorOrder;
+}
+
 export type VendorEarningsDto = {
   grossSalesCents: number;
   commissionCents: number;
@@ -1048,22 +1125,32 @@ export type VendorEarningsDto = {
   last7dNetCents: number;
   last30dNetCents: number;
   outstandingDebtCents?: number;
-  recentTransfers: Array<{
-    id: string;
-    status: string;
-    amountCents: number;
-    currency: string;
-    stripeTransferId: string | null;
-    vendorOrderId: string;
-    orderId: string;
-    vendorOrderStatus: string;
-    createdAt: string;
-  }>;
+};
+
+export type VendorTransferDto = {
+  id: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  stripeTransferId: string | null;
+  vendorOrderId: string;
+  orderId: string;
+  vendorOrderStatus: string;
+  createdAt: string;
 };
 
 export async function fetchVendorEarnings() {
   const body = await api<{ data: VendorEarningsDto }>('/api/v1/vendor/earnings');
   return body.data;
+}
+
+export async function fetchVendorEarningsTransfers(page = 1, limit = 24) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const body = await api<{
+    data: VendorTransferDto[];
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/vendor/earnings/transfers?${params}`);
+  return body;
 }
 
 export type VendorDashboardDto = {

@@ -17,7 +17,7 @@ const menuLink =
 export function AccountMenu() {
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, vendor, loading: authLoading, logout } = useAuth();
   const { refresh: refreshCart } = useCart();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -106,8 +106,13 @@ export function AccountMenu() {
                   Account
                 </Link>
                 {user.role === 'vendor' ? (
-                  <Link href="/vendor" role="menuitem" className={menuLink} onClick={close}>
-                    Dashboard
+                  <Link
+                    href={vendor?.status === 'approved' ? '/vendor' : '/vendor/onboarding'}
+                    role="menuitem"
+                    className={menuLink}
+                    onClick={close}
+                  >
+                    {vendor?.status === 'approved' ? 'Dashboard' : 'Seller onboarding'}
                   </Link>
                 ) : null}
                 {user.role === 'admin' ? (

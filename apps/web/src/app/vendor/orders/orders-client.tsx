@@ -14,6 +14,7 @@ const FILTERS = [
   { key: 'paid', label: 'Paid' },
   { key: 'fulfilling', label: 'Fulfilling' },
   { key: 'shipped', label: 'Shipped' },
+  { key: 'delivered', label: 'Delivered' },
 ] as const;
 
 export default function VendorOrdersClient() {

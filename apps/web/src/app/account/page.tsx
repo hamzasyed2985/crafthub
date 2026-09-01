@@ -85,8 +85,11 @@ export default function AccountPage() {
           Your orders
         </Link>
         {user.role === 'vendor' || vendor ? (
-          <Link href="/vendor" className="block text-accent hover:underline">
-            Seller dashboard
+          <Link
+            href={vendor?.status === 'approved' ? '/vendor' : '/vendor/onboarding'}
+            className="block text-accent hover:underline"
+          >
+            {vendor?.status === 'approved' ? 'Seller dashboard' : 'Seller onboarding'}
           </Link>
         ) : null}
         {user.role === 'admin' ? (

@@ -151,6 +151,7 @@ model VendorProfile {
   vendorOrders  VendorOrder[]
   ledgerEntries VendorLedgerEntry[]
 
+  @@index([status])
   @@map("vendor_profiles")
 }
 
@@ -220,6 +221,7 @@ model Product {
 
   @@unique([shopId, slug])
   @@index([status])
+  @@index([shopId, status])
   @@index([categoryId])
   @@map("products")
 }
@@ -364,6 +366,7 @@ model VendorOrder {
   @@index([orderId])
   @@index([vendorId])
   @@index([status])
+  @@index([vendorId, createdAt])
   @@map("vendor_orders")
 }
 
@@ -384,6 +387,7 @@ model OrderItem {
   vendorOrder VendorOrder @relation(fields: [vendorOrderId], references: [id], onDelete: Cascade)
 
   @@index([vendorOrderId])
+  @@index([productId])
   @@map("order_items")
 }
 
@@ -482,6 +486,8 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([actorId])
+  @@index([action])
+  @@index([action, createdAt])
   @@map("audit_logs")
 }
 

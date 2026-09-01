@@ -9,7 +9,7 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
     variants: true;
     media: true;
     category: true;
-    shop: { include: { vendor: true } };
+    shop: { include: { vendor: { include: { stripeAccount: true } } } };
   };
 }>;
 
@@ -76,6 +76,8 @@ export function serializeProduct(product: ProductWithRelations, opts?: { publicO
         city: product.shop.vendor.city,
         logoUrl: product.shop.vendor.logoUrl,
         status: product.shop.vendor.status,
+        /** Buyers can check out when the vendor's Connect account can accept charges. */
+        chargesEnabled: Boolean(product.shop.vendor.stripeAccount?.chargesEnabled),
       },
     },
     variants,
@@ -97,5 +99,5 @@ export const productInclude = {
   variants: true,
   media: true,
   category: true,
-  shop: { include: { vendor: true } },
+  shop: { include: { vendor: { include: { stripeAccount: true } } } },
 } satisfies Prisma.ProductInclude;

@@ -20,6 +20,7 @@ type ShopPayload = {
       returnsPolicy: string | null;
       flatShippingCents: number;
       shipsFromCity: string | null;
+      chargesEnabled?: boolean;
     };
   };
 };
@@ -111,6 +112,12 @@ export default async function ShopPage({
 
         {shop.bio ? (
           <p className="mt-6 max-w-2xl text-pretty text-muted">{shop.bio}</p>
+        ) : null}
+
+        {shop.chargesEnabled === false ? (
+          <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
+            This shop is not ready for checkout yet — Stripe Connect is incomplete.
+          </p>
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-subtle">

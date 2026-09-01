@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
+import { PaginationControls } from '@/components/pagination-controls';
 import { fetchAdminFinance, fetchAdminVendorLedger } from '@/lib/api';
 import { formatStatusLabel } from '@/lib/format-status';
 
@@ -12,26 +13,50 @@ type Ledger = Awaited<ReturnType<typeof fetchAdminVendorLedger>>['data'];
 
 export default function AdminFinancePage() {
   const [data, setData] = useState<Finance | null>(null);
+  const [vendorPage, setVendorPage] = useState(1);
+  const [vendorTotal, setVendorTotal] = useState(0);
+  const [vendorLimit, setVendorLimit] = useState(24);
+  const [recentPage, setRecentPage] = useState(1);
+  const [recentTotal, setRecentTotal] = useState(0);
+  const [recentLimit, setRecentLimit] = useState(24);
   const [error, setError] = useState<string | null>(null);
   const [ledgerVendorId, setLedgerVendorId] = useState<string | null>(null);
   const [ledgerVendorName, setLedgerVendorName] = useState<string | null>(null);
   const [ledger, setLedger] = useState<Ledger | null>(null);
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerTotal, setLedgerTotal] = useState(0);
+  const [ledgerLimit, setLedgerLimit] = useState(24);
   const [ledgerError, setLedgerError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAdminFinance()
-      .then((res) => setData(res.data))
+    fetchAdminFinance({ vendorPage, vendorLimit: 24, recentPage, recentLimit: 24 })
+      .then((res) => {
+        setData(res.data);
+        setVendorTotal(res.meta.byVendor.total);
+        setVendorLimit(res.meta.byVendor.limit);
+        setRecentTotal(res.meta.recentCommissions.total);
+        setRecentLimit(res.meta.recentCommissions.limit);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed'));
-  }, []);
+  }, [vendorPage, recentPage]);
 
   async function openLedger(vendorId: string, displayName: string) {
     setLedgerVendorId(vendorId);
     setLedgerVendorName(displayName);
+    setLedgerPage(1);
+    setLedger(null);
+    setLedgerError(null);
+    await loadLedger(vendorId, 1);
+  }
+
+  async function loadLedger(vendorId: string, page: number) {
     setLedger(null);
     setLedgerError(null);
     try {
-      const res = await fetchAdminVendorLedger(vendorId);
+      const res = await fetchAdminVendorLedger(vendorId, page, 24);
       setLedger(res.data);
+      setLedgerTotal(res.meta.total);
+      setLedgerLimit(res.meta.limit);
     } catch (err) {
       setLedgerError(err instanceof Error ? err.message : 'Failed to load ledger');
     }
@@ -41,8 +66,15 @@ export default function AdminFinancePage() {
     setLedgerVendorId(null);
     setLedgerVendorName(null);
     setLedger(null);
+    setLedgerPage(1);
     setLedgerError(null);
   }
+
+  useEffect(() => {
+    if (!ledgerVendorId) return;
+    void loadLedger(ledgerVendorId, ledgerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgerPage]);
 
   useEffect(() => {
     if (!ledgerVendorId) return;
@@ -112,57 +144,65 @@ export default function AdminFinancePage() {
         {data.byVendor.length === 0 ? (
           <p className="mt-4 text-muted">No commission earned yet.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-subtle">
-                  <th className="py-2 pr-3 font-medium">Vendor</th>
-                  <th className="py-2 pr-3 font-medium">Orders</th>
-                  <th className="py-2 pr-3 font-medium">GMV</th>
-                  <th className="py-2 pr-3 font-medium">Commission</th>
-                  <th className="py-2 pr-3 font-medium">Vendor net</th>
-                  <th className="py-2 pr-3 font-medium">Debt</th>
-                  <th className="py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.byVendor.map((v) => (
-                  <tr key={v.vendorId} className="border-b border-border/70">
-                    <td className="py-3 pr-3">
-                      <Link href={`/shops/${v.slug}`} className="font-semibold text-accent">
-                        {v.displayName}
-                      </Link>
-                      {v.ledgerReviewRequired ? (
-                        <span className="ml-2 text-xs text-warning">review</span>
-                      ) : null}
-                    </td>
-                    <td className="py-3 pr-3">{v.orderCount}</td>
-                    <td className="py-3 pr-3">
-                      <Price cents={v.gmvCents} />
-                    </td>
-                    <td className="py-3 pr-3 font-semibold">
-                      <Price cents={v.commissionCents} />
-                    </td>
-                    <td className="py-3 pr-3">
-                      <Price cents={v.vendorNetCents} />
-                    </td>
-                    <td className="py-3 pr-3">
-                      <Price cents={v.outstandingDebtCents} />
-                    </td>
-                    <td className="py-3">
-                      <button
-                        type="button"
-                        className="text-accent hover:underline"
-                        onClick={() => void openLedger(v.vendorId, v.displayName)}
-                      >
-                        Ledger
-                      </button>
-                    </td>
+          <>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-subtle">
+                    <th className="py-2 pr-3 font-medium">Vendor</th>
+                    <th className="py-2 pr-3 font-medium">Orders</th>
+                    <th className="py-2 pr-3 font-medium">GMV</th>
+                    <th className="py-2 pr-3 font-medium">Commission</th>
+                    <th className="py-2 pr-3 font-medium">Vendor net</th>
+                    <th className="py-2 pr-3 font-medium">Debt</th>
+                    <th className="py-2 font-medium" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.byVendor.map((v) => (
+                    <tr key={v.vendorId} className="border-b border-border/70">
+                      <td className="py-3 pr-3">
+                        <Link href={`/shops/${v.slug}`} className="font-semibold text-accent">
+                          {v.displayName}
+                        </Link>
+                        {v.ledgerReviewRequired ? (
+                          <span className="ml-2 text-xs text-warning">review</span>
+                        ) : null}
+                      </td>
+                      <td className="py-3 pr-3">{v.orderCount}</td>
+                      <td className="py-3 pr-3">
+                        <Price cents={v.gmvCents} />
+                      </td>
+                      <td className="py-3 pr-3 font-semibold">
+                        <Price cents={v.commissionCents} />
+                      </td>
+                      <td className="py-3 pr-3">
+                        <Price cents={v.vendorNetCents} />
+                      </td>
+                      <td className="py-3 pr-3">
+                        <Price cents={v.outstandingDebtCents} />
+                      </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          className="text-accent hover:underline"
+                          onClick={() => void openLedger(v.vendorId, v.displayName)}
+                        >
+                          Ledger
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationControls
+              page={vendorPage}
+              limit={vendorLimit}
+              total={vendorTotal}
+              onPageChange={setVendorPage}
+            />
+          </>
         )}
       </section>
 
@@ -240,6 +280,12 @@ export default function AdminFinancePage() {
                       ))}
                     </ul>
                   )}
+                  <PaginationControls
+                    page={ledgerPage}
+                    limit={ledgerLimit}
+                    total={ledgerTotal}
+                    onPageChange={setLedgerPage}
+                  />
                 </>
               ) : null}
             </div>
@@ -255,50 +301,58 @@ export default function AdminFinancePage() {
         {data.recentCommissions.length === 0 ? (
           <p className="mt-4 text-muted">No commission lines yet.</p>
         ) : (
-          <ul className="mt-6 space-y-4">
-            {data.recentCommissions.map((row) => (
-              <li key={row.vendorOrderId} className="rounded-md border border-border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{row.vendor.displayName}</p>
-                    <p className="text-sm text-subtle">
-                      {formatStatusLabel(row.vendorOrderStatus)} · order{' '}
-                      {formatStatusLabel(row.orderStatus)} ·{' '}
-                      {(row.commissionBps / 100).toFixed(1)}% of items
-                    </p>
-                    <ul className="mt-2 text-sm text-muted">
-                      {row.items.map((item, i) => (
-                        <li key={`${row.vendorOrderId}-${i}`}>
-                          {item.quantity}× {item.title} (
-                          <Price cents={item.lineTotalCents} />)
-                        </li>
-                      ))}
-                    </ul>
+          <>
+            <ul className="mt-6 space-y-4">
+              {data.recentCommissions.map((row) => (
+                <li key={row.vendorOrderId} className="rounded-md border border-border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{row.vendor.displayName}</p>
+                      <p className="text-sm text-subtle">
+                        {formatStatusLabel(row.vendorOrderStatus)} · order{' '}
+                        {formatStatusLabel(row.orderStatus)} ·{' '}
+                        {(row.commissionBps / 100).toFixed(1)}% of items
+                      </p>
+                      <ul className="mt-2 text-sm text-muted">
+                        {row.items.map((item, i) => (
+                          <li key={`${row.vendorOrderId}-${i}`}>
+                            {item.quantity}× {item.title} (
+                            <Price cents={item.lineTotalCents} />)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p>
+                        Commission{' '}
+                        <span className="font-semibold">
+                          <Price cents={row.commissionCents} />
+                        </span>
+                      </p>
+                      <p className="text-subtle">
+                        Net <Price cents={row.vendorNetCents} />
+                        {row.transferStatus
+                          ? ` · transfer ${formatStatusLabel(row.transferStatus)}`
+                          : ''}
+                      </p>
+                      <Link
+                        href={`/admin/orders/${row.orderId}`}
+                        className="mt-2 inline-block text-accent"
+                      >
+                        View order
+                      </Link>
+                    </div>
                   </div>
-                  <div className="text-right text-sm">
-                    <p>
-                      Commission{' '}
-                      <span className="font-semibold">
-                        <Price cents={row.commissionCents} />
-                      </span>
-                    </p>
-                    <p className="text-subtle">
-                      Net <Price cents={row.vendorNetCents} />
-                      {row.transferStatus
-                        ? ` · transfer ${formatStatusLabel(row.transferStatus)}`
-                        : ''}
-                    </p>
-                    <Link
-                      href={`/admin/orders/${row.orderId}`}
-                      className="mt-2 inline-block text-accent"
-                    >
-                      View order
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+            <PaginationControls
+              page={recentPage}
+              limit={recentLimit}
+              total={recentTotal}
+              onPageChange={setRecentPage}
+            />
+          </>
         )}
       </section>
     </Page>

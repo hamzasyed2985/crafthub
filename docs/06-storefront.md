@@ -35,8 +35,8 @@ Make CraftHub feel like a curated local market: discovery first, trust second, c
 - Images, title, price, stock, variant selectors
 - Vendor chip linking to shop (trust)
 - Shipping estimate (flat from shop)
-- Add to cart + buy now
-- Reviews
+- Add to cart — disabled when vendor Stripe Connect is not charge-ready
+- Reviews form only when the signed-in buyer is eligible (purchased + shipped/delivered, not already reviewed)
 
 ### Cart
 
@@ -44,6 +44,7 @@ Make CraftHub feel like a curated local market: discovery first, trust second, c
 - Per-vendor subtotal + shipping
 - Platform total
 - Warn if reservation/stock changes
+- Warn / block checkout when a vendor group is not Stripe-payable
 
 ### Checkout
 
@@ -53,10 +54,12 @@ Make CraftHub feel like a curated local market: discovery first, trust second, c
 4. Pay with Stripe  
 5. Success page + email  
 
+Checkout rejects carts that include vendors without `charges_enabled`.
+
 ### Account
 
 - Orders with per-vendor shipment status  
-- Leave review when `delivered`  
+- Leave review when item is `shipped` or `delivered` (eligibility API)  
 
 ## Empty & error states
 

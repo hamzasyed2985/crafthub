@@ -1,10 +1,13 @@
 import { Router } from 'express';
-import { prisma } from '@crafthub/db';
+import { prisma, Prisma } from '@crafthub/db';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
+import { fetchProductIdsByMinVariantPrice } from '../../lib/catalog-products.js';
 import { productInclude, serializeProduct } from '../../lib/serializers.js';
 
 export const catalogRouter = Router();
+
+type CatalogProductRow = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
 catalogRouter.get('/categories', async (_req, res, next) => {
   try {
@@ -107,6 +110,7 @@ catalogRouter.get('/shops/:slug', async (req, res, next) => {
           returnsPolicy: vendor.shop.returnsPolicy,
           flatShippingCents: vendor.shop.flatShippingCents,
           shipsFromCity: vendor.shop.shipsFromCity,
+          chargesEnabled: Boolean(vendor.stripeAccount?.chargesEnabled),
         },
         products: products.map((p) => serializeProduct(p)),
       },
@@ -123,7 +127,7 @@ catalogRouter.get('/shops/:slug/products/:productSlug', async (req, res, next) =
     const productSlug = routeParam(req.params.productSlug, 'productSlug');
     const vendor = await prisma.vendorProfile.findFirst({
       where: { slug, status: 'approved' },
-      include: { shop: true },
+      include: { shop: true, stripeAccount: true },
     });
     if (!vendor?.shop) throw new AppError(404, 'NOT_FOUND', 'Shop not found');
 
@@ -143,6 +147,7 @@ catalogRouter.get('/shops/:slug/products/:productSlug', async (req, res, next) =
           displayName: vendor.displayName,
           slug: vendor.slug,
           flatShippingCents: vendor.shop.flatShippingCents,
+          chargesEnabled: Boolean(vendor.stripeAccount?.chargesEnabled),
         },
         product: serializeProduct(product),
       },
@@ -212,28 +217,32 @@ catalogRouter.get('/products', async (req, res, next) => {
 
     const total = await prisma.product.count({ where });
 
-    let products;
+    let products: CatalogProductRow[];
     if (sort === 'price_asc' || sort === 'price_desc') {
-      // Fetch page candidates then sort by lowest variant price (catalog size is modest).
-      const all = await prisma.product.findMany({
-        where,
-        include: productInclude,
-      });
-      const dir = sort === 'price_asc' ? 1 : -1;
-      all.sort((a, b) => {
-        const pa = a.variants.reduce(
-          (min, v) => Math.min(min, v.priceCents),
-          Number.POSITIVE_INFINITY,
+      const ids = await fetchProductIdsByMinVariantPrice(
+        {
+          q: q || undefined,
+          category: category || undefined,
+          shopSlug: shopSlug || undefined,
+          minPrice,
+          maxPrice,
+        },
+        sort,
+        skip,
+        limit,
+      );
+      if (ids.length === 0) {
+        products = [];
+      } else {
+        const rows = await prisma.product.findMany({
+          where: { id: { in: ids } },
+          include: productInclude,
+        });
+        const order = new Map(ids.map((id, index) => [id, index]));
+        products = rows.sort(
+          (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
         );
-        const pb = b.variants.reduce(
-          (min, v) => Math.min(min, v.priceCents),
-          Number.POSITIVE_INFINITY,
-        );
-        const sa = Number.isFinite(pa) ? pa : 0;
-        const sb = Number.isFinite(pb) ? pb : 0;
-        return (sa - sb) * dir;
-      });
-      products = all.slice(skip, skip + limit);
+      }
     } else {
       products = await prisma.product.findMany({
         where,

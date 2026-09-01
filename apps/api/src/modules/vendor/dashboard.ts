@@ -15,7 +15,9 @@ vendorDashboardRouter.get('/', async (req: VendorRequest, res, next) => {
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const [vendor, ordersToFulfill, recent, ordersByStatus, productCount, lowStockCount] =
+    const earningStatuses = ['paid', 'fulfilling', 'shipped', 'delivered'] as const;
+
+    const [vendor, ordersToFulfill, net30dAgg, net7dAgg, ordersByStatus, productCount, lowStockCount] =
       await Promise.all([
         prisma.vendorProfile.findUniqueOrThrow({
           where: { id: vendorId },
@@ -27,13 +29,21 @@ vendorDashboardRouter.get('/', async (req: VendorRequest, res, next) => {
             status: { in: ['paid', 'fulfilling'] },
           },
         }),
-        prisma.vendorOrder.findMany({
+        prisma.vendorOrder.aggregate({
           where: {
             vendorId,
-            status: { in: ['paid', 'fulfilling', 'shipped', 'delivered'] },
+            status: { in: [...earningStatuses] },
             createdAt: { gte: last30d },
           },
-          select: { vendorNetCents: true, createdAt: true },
+          _sum: { vendorNetCents: true },
+        }),
+        prisma.vendorOrder.aggregate({
+          where: {
+            vendorId,
+            status: { in: [...earningStatuses] },
+            createdAt: { gte: last7d },
+          },
+          _sum: { vendorNetCents: true },
         }),
         prisma.vendorOrder.groupBy({
           by: ['status'],
@@ -52,12 +62,8 @@ vendorDashboardRouter.get('/', async (req: VendorRequest, res, next) => {
         }),
       ]);
 
-    let net7dCents = 0;
-    let net30dCents = 0;
-    for (const vo of recent) {
-      net30dCents += vo.vendorNetCents;
-      if (vo.createdAt >= last7d) net7dCents += vo.vendorNetCents;
-    }
+    const net30dCents = net30dAgg._sum.vendorNetCents ?? 0;
+    const net7dCents = net7dAgg._sum.vendorNetCents ?? 0;
 
     res.json({
       data: {

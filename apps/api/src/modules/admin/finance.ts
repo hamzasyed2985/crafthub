@@ -3,7 +3,7 @@ import { prisma } from '@crafthub/db';
 import { adminRefundSchema, adminSettingsPatchSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
-import { getVendorOutstandingDebtCents } from '../../lib/ledger.js';
+import { getVendorOutstandingDebtCents, getVendorOutstandingDebtCentsMap } from '../../lib/ledger.js';
 import { refundOrder, retryVendorOrderTransfer } from '../../lib/refunds.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../../middleware/auth.js';
 
@@ -223,15 +223,8 @@ adminFinanceRouter.get('/orders/:id', async (req, res, next) => {
     });
     if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
 
-    const vendorDebts = await Promise.all(
-      order.vendorOrders.map(async (vo: Elem<typeof order.vendorOrders>) => ({
-        vendorId: vo.vendorId,
-        outstandingDebtCents: await getVendorOutstandingDebtCents(vo.vendorId),
-      })),
-    );
-    const debtByVendor = Object.fromEntries(
-      vendorDebts.map((d: Elem<typeof vendorDebts>) => [d.vendorId, d.outstandingDebtCents]),
-    );
+    const vendorIds = order.vendorOrders.map((vo: Elem<typeof order.vendorOrders>) => vo.vendorId);
+    const debtByVendor = Object.fromEntries(await getVendorOutstandingDebtCentsMap(vendorIds));
 
     res.json({
       data: {
@@ -398,15 +391,20 @@ adminFinanceRouter.get('/audit-logs', async (req, res, next) => {
 adminFinanceRouter.get('/vendors/:id/ledger', async (req, res, next) => {
   try {
     const id = routeParam(req.params.id);
+    const { page, limit, skip } = parsePagination(req.query);
     const vendor = await prisma.vendorProfile.findUnique({ where: { id } });
     if (!vendor) throw new AppError(404, 'NOT_FOUND', 'Vendor not found');
 
-    const [outstandingDebtCents, entries] = await Promise.all([
+    const where = { vendorId: id };
+
+    const [outstandingDebtCents, total, entries] = await Promise.all([
       getVendorOutstandingDebtCents(id),
+      prisma.vendorLedgerEntry.count({ where }),
       prisma.vendorLedgerEntry.findMany({
-        where: { vendorId: id },
+        where,
         orderBy: { createdAt: 'desc' },
-        take: 50,
+        skip,
+        take: limit,
       }),
     ]);
 
@@ -426,6 +424,7 @@ adminFinanceRouter.get('/vendors/:id/ledger', async (req, res, next) => {
           createdAt: e.createdAt.toISOString(),
         })),
       },
+      meta: { total, page, limit },
     });
   } catch (err) {
     next(err);
@@ -433,8 +432,17 @@ adminFinanceRouter.get('/vendors/:id/ledger', async (req, res, next) => {
 });
 
 /** Commission earned by source: rate, per-vendor totals, recent line items. */
-adminFinanceRouter.get('/finance', async (_req, res, next) => {
+adminFinanceRouter.get('/finance', async (req, res, next) => {
   try {
+    const vendorPage = parsePagination({
+      page: req.query.vendorPage,
+      limit: req.query.vendorLimit,
+    });
+    const recentPage = parsePagination({
+      page: req.query.recentPage,
+      limit: req.query.recentLimit,
+    });
+
     let settings = await prisma.platformSettings.findFirst({
       orderBy: { updatedAt: 'desc' },
     });
@@ -443,11 +451,12 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
     }
 
     const commissionStatuses = ['paid', 'fulfilling', 'shipped', 'delivered', 'refunded'] as const;
+    const recentWhere = { status: { in: [...commissionStatuses] } };
 
-    const [byVendorRaw, recent, transfersAgg, debtRows] = await Promise.all([
+    const [byVendorRaw, recentTotal, recent, transfersAgg, debtRows] = await Promise.all([
       prisma.vendorOrder.groupBy({
         by: ['vendorId'],
-        where: { status: { in: [...commissionStatuses] } },
+        where: recentWhere,
         _sum: {
           commissionCents: true,
           itemsSubtotalCents: true,
@@ -455,8 +464,9 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
         },
         _count: true,
       }),
+      prisma.vendorOrder.count({ where: recentWhere }),
       prisma.vendorOrder.findMany({
-        where: { status: { in: [...commissionStatuses] } },
+        where: recentWhere,
         include: {
           vendor: { select: { id: true, displayName: true, slug: true } },
           order: { select: { id: true, status: true, createdAt: true } },
@@ -464,7 +474,8 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
           transfer: { select: { status: true, amountCents: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 40,
+        skip: recentPage.skip,
+        take: recentPage.limit,
       }),
       prisma.transfer.aggregate({
         where: { status: 'paid' },
@@ -484,10 +495,7 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
     });
     const vendorMap = Object.fromEntries(vendors.map((v: Elem<typeof vendors>) => [v.id, v]));
 
-    const debts = await Promise.all(
-      vendorIds.map(async (id: Elem<typeof vendorIds>) => [id, await getVendorOutstandingDebtCents(id)] as const),
-    );
-    const debtMap = Object.fromEntries(debts);
+    const debtMap = Object.fromEntries(await getVendorOutstandingDebtCentsMap(vendorIds));
 
     let debt = 0;
     let offset = 0;
@@ -497,7 +505,7 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
       else if (row.kind === 'debt_offset') offset += sum;
     }
 
-    const byVendor = byVendorRaw
+    const byVendorAll = byVendorRaw
       .map((r: Elem<typeof byVendorRaw>) => {
         const v = vendorMap[r.vendorId];
         return {
@@ -514,6 +522,11 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
       })
       .sort((a, b) => b.commissionCents - a.commissionCents);
 
+    const byVendor = byVendorAll.slice(
+      vendorPage.skip,
+      vendorPage.skip + vendorPage.limit,
+    );
+
     res.json({
       data: {
         settings: {
@@ -522,8 +535,14 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
           debtReviewThresholdCents: settings.debtReviewThresholdCents,
         },
         totals: {
-          platformRevenueCents: byVendor.reduce((n: number, v: Elem<typeof byVendor>) => n + v.commissionCents, 0),
-          gmvCents: byVendor.reduce((n: number, v: Elem<typeof byVendor>) => n + v.gmvCents, 0),
+          platformRevenueCents: byVendorAll.reduce(
+            (n: number, v: Elem<typeof byVendorAll>) => n + v.commissionCents,
+            0,
+          ),
+          gmvCents: byVendorAll.reduce(
+            (n: number, v: Elem<typeof byVendorAll>) => n + v.gmvCents,
+            0,
+          ),
           paidOutCents: transfersAgg._sum.amountCents ?? 0,
           paidTransferCount: transfersAgg._count,
           outstandingVendorDebtCents: Math.max(0, debt - offset),
@@ -543,6 +562,10 @@ adminFinanceRouter.get('/finance', async (_req, res, next) => {
           items: vo.items,
           createdAt: vo.createdAt.toISOString(),
         })),
+      },
+      meta: {
+        byVendor: { total: byVendorAll.length, page: vendorPage.page, limit: vendorPage.limit },
+        recentCommissions: { total: recentTotal, page: recentPage.page, limit: recentPage.limit },
       },
     });
   } catch (err) {

@@ -239,13 +239,16 @@ describe('e2e · vendor ops (phase 4)', () => {
       data: {
         grossSalesCents: number;
         netCents: number;
-        recentTransfers: Array<{ vendorOrderId: string }>;
       };
     }>('/api/v1/vendor/earnings', { token: makerToken });
     expect(earnings.data.grossSalesCents).toBeGreaterThanOrEqual(paidSlice!.itemsSubtotalCents);
     expect(earnings.data.netCents).toBeGreaterThanOrEqual(paidSlice!.vendorNetCents);
+
+    const transfers = await expectOk<{
+      data: Array<{ vendorOrderId: string }>;
+    }>('/api/v1/vendor/earnings/transfers', { token: makerToken });
     expect(
-      earnings.data.recentTransfers.some((t) => t.vendorOrderId === vendorOrderId),
+      transfers.data.some((t) => t.vendorOrderId === vendorOrderId),
     ).toBe(true);
 
     const dashAfter = await expectOk<{
@@ -274,5 +277,11 @@ describe('e2e · vendor ops (phase 4)', () => {
       { method: 'POST', token: makerToken, body: '{}' },
     );
     expect(ship.data.vendorOrder.status).toBe('shipped');
+
+    const deliver = await expectOk<{ data: { vendorOrder: { status: string } } }>(
+      `/api/v1/vendor/orders/${slice!.id}/deliver`,
+      { method: 'POST', token: makerToken, body: '{}' },
+    );
+    expect(deliver.data.vendorOrder.status).toBe('delivered');
   });
 });

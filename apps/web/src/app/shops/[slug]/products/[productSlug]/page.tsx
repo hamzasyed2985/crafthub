@@ -17,7 +17,12 @@ async function loadProduct(shopSlug: string, productSlug: string) {
   if (!res.ok) return null;
   const body = (await res.json()) as {
     data: {
-      shop: { displayName: string; slug: string; flatShippingCents: number };
+      shop: {
+        displayName: string;
+        slug: string;
+        flatShippingCents: number;
+        chargesEnabled?: boolean;
+      };
       product: ProductDto;
     };
   };
@@ -59,6 +64,8 @@ export default async function ProductPage({
 
   const { product } = data;
   const variant = product.variants[0];
+  const payable =
+    data.shop.chargesEnabled ?? product.shop.vendor.chargesEnabled ?? false;
 
   return (
     <Page size="default">
@@ -80,13 +87,23 @@ export default async function ProductPage({
             Flat shipping <Price cents={data.shop.flatShippingCents} />
           </p>
           <p className="mt-6 whitespace-pre-wrap text-muted">{product.description}</p>
+          {!payable ? (
+            <p className="mt-6 rounded-md border border-border bg-accent-muted/40 px-4 py-3 text-sm">
+              This shop is not ready for checkout yet (Stripe setup incomplete).
+            </p>
+          ) : null}
           {variant ? (
-            <AddToCartButton variantId={variant.id} stockQty={variant.stockQty} />
+            <AddToCartButton
+              variantId={variant.id}
+              stockQty={variant.stockQty}
+              disabled={!payable}
+              disabledLabel={!payable ? 'Checkout unavailable' : undefined}
+            />
           ) : null}
         </div>
       </div>
       <div className="mt-14 border-t border-border pt-10">
-        <ProductReviews productId={product.id} canReview />
+        <ProductReviews productId={product.id} />
       </div>
     </Page>
   );

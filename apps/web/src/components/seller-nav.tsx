@@ -2,44 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth-provider';
 
-const SECTIONS = [
-  { href: '/vendor', label: 'Dashboard', match: (p: string) => p === '/vendor' },
-  {
-    href: '/vendor/orders',
-    label: 'Orders',
-    match: (p: string) => p.startsWith('/vendor/orders'),
-  },
-  {
-    href: '/vendor/products',
-    label: 'Products',
-    match: (p: string) => p.startsWith('/vendor/products'),
-  },
-  {
-    href: '/vendor/earnings',
-    label: 'Earnings',
-    match: (p: string) => p.startsWith('/vendor/earnings'),
-  },
-  {
-    href: '/vendor/shop',
-    label: 'Shop',
-    match: (p: string) => p.startsWith('/vendor/shop'),
-  },
-  {
-    href: '/vendor/onboarding',
-    label: 'Onboarding',
-    match: (p: string) => p.startsWith('/vendor/onboarding'),
-  },
-  {
-    href: '/vendor/apply',
-    label: 'Apply',
-    match: (p: string) => p.startsWith('/vendor/apply'),
-  },
+const APPROVED_JUMP = [
+  { href: '/vendor', label: 'Dashboard' },
+  { href: '/vendor/orders', label: 'Orders' },
+  { href: '/vendor/products', label: 'Products' },
+  { href: '/vendor/earnings', label: 'Earnings' },
+  { href: '/vendor/shop', label: 'Shop' },
 ] as const;
 
-function currentSection(pathname: string) {
-  return SECTIONS.find((s) => s.match(pathname)) ?? SECTIONS[0];
-}
+const PENDING_JUMP = [
+  { href: '/vendor/onboarding', label: 'Onboarding' },
+  { href: '/vendor/shop', label: 'Shop' },
+] as const;
 
 function detailLabel(pathname: string): string | null {
   if (/^\/vendor\/orders\/[^/]+$/.test(pathname)) return 'Order detail';
@@ -48,16 +24,30 @@ function detailLabel(pathname: string): string | null {
   return null;
 }
 
+function sectionLabel(pathname: string, approved: boolean): { href: string; label: string } {
+  if (pathname.startsWith('/vendor/orders')) return { href: '/vendor/orders', label: 'Orders' };
+  if (pathname.startsWith('/vendor/products')) return { href: '/vendor/products', label: 'Products' };
+  if (pathname.startsWith('/vendor/earnings')) return { href: '/vendor/earnings', label: 'Earnings' };
+  if (pathname.startsWith('/vendor/shop')) return { href: '/vendor/shop', label: 'Shop' };
+  if (pathname.startsWith('/vendor/onboarding')) {
+    return { href: '/vendor/onboarding', label: 'Onboarding' };
+  }
+  if (pathname.startsWith('/vendor/apply')) return { href: '/vendor/apply', label: 'Apply' };
+  return approved
+    ? { href: '/vendor', label: 'Dashboard' }
+    : { href: '/vendor/onboarding', label: 'Onboarding' };
+}
+
 export function SellerNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const section = currentSection(pathname);
+  const { vendor } = useAuth();
+  const approved = vendor?.status === 'approved';
+  const homeHref = approved ? '/vendor' : '/vendor/onboarding';
+  const jump = approved ? APPROVED_JUMP : PENDING_JUMP;
+  const section = sectionLabel(pathname, approved);
   const detail = detailLabel(pathname);
-  const onDashboard = pathname === '/vendor';
-
-  const jumpSections = SECTIONS.filter(
-    (s) => s.href !== '/vendor/apply' && s.href !== '/vendor/onboarding',
-  );
+  const onHome = pathname === homeHref;
 
   return (
     <div className="border-b border-border bg-elevated/60">
@@ -65,11 +55,11 @@ export function SellerNav() {
         aria-label="Seller breadcrumb"
         className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-3 text-sm"
       >
-        <Link href="/vendor" className="font-semibold text-foreground hover:text-accent">
+        <Link href={homeHref} className="font-semibold text-foreground hover:text-accent">
           Seller
         </Link>
 
-        {!onDashboard || detail ? (
+        {!onHome || detail ? (
           <>
             <span className="text-subtle" aria-hidden>
               /
@@ -89,13 +79,11 @@ export function SellerNav() {
                 <span className="sr-only">Seller section</span>
                 <select
                   className="max-w-[12rem] cursor-pointer appearance-none border-0 bg-transparent py-0.5 font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={
-                    jumpSections.some((s) => s.href === section.href) ? section.href : '/vendor'
-                  }
+                  value={jump.some((s) => s.href === section.href) ? section.href : homeHref}
                   onChange={(e) => router.push(e.target.value)}
                   aria-label="Jump to seller section"
                 >
-                  {jumpSections.map((s) => (
+                  {jump.map((s) => (
                     <option key={s.href} value={s.href}>
                       {s.label}
                     </option>
@@ -109,7 +97,7 @@ export function SellerNav() {
             <span className="text-subtle" aria-hidden>
               /
             </span>
-            <span className="text-muted">Dashboard</span>
+            <span className="text-muted">{approved ? 'Dashboard' : 'Onboarding'}</span>
           </>
         )}
       </nav>

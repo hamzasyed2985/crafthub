@@ -20,7 +20,9 @@ export type StripeAdapter = {
     accountId: string;
     refreshUrl: string;
     returnUrl: string;
+    type: 'account_onboarding' | 'account_update';
   }) => Promise<{ url: string }>;
+  createExpressLoginLink: (accountId: string) => Promise<{ url: string }>;
   retrieveAccount: (accountId: string) => Promise<{
     id: string;
     charges_enabled: boolean;
@@ -62,8 +64,14 @@ function createMockAdapter(): StripeAdapter {
       return { id: `acct_mock_${randomUUID().replace(/-/g, '').slice(0, 16)}` };
     },
     async createAccountLink(opts) {
+      const q = opts.type === 'account_update' ? 'mock_update=1' : 'mock_onboard=1';
       return {
-        url: `${opts.returnUrl}${opts.returnUrl.includes('?') ? '&' : '?'}mock_onboard=1&account=${opts.accountId}`,
+        url: `${opts.returnUrl}${opts.returnUrl.includes('?') ? '&' : '?'}${q}&account=${opts.accountId}`,
+      };
+    },
+    async createExpressLoginLink(accountId) {
+      return {
+        url: `${env.APP_URL}/vendor/onboarding?mock_dashboard=1&account=${accountId}`,
       };
     },
     async retrieveAccount(accountId) {
@@ -150,8 +158,12 @@ function createLiveAdapter(): StripeAdapter {
         account: opts.accountId,
         refresh_url: opts.refreshUrl,
         return_url: opts.returnUrl,
-        type: 'account_onboarding',
+        type: opts.type,
       });
+      return { url: link.url };
+    },
+    async createExpressLoginLink(accountId) {
+      const link = await stripe.accounts.createLoginLink(accountId);
       return { url: link.url };
     },
     async retrieveAccount(accountId) {
@@ -253,4 +265,20 @@ export function getStripe(): StripeAdapter {
 
 export function isStripeMockMode() {
   return env.useStripeMock;
+}
+
+/** Mock/seed IDs are not real Stripe Connect accounts — replace when using test/live API. */
+export function isPlaceholderConnectAccountId(accountId: string | null | undefined): boolean {
+  if (!accountId) return false;
+  return accountId.startsWith('acct_mock_') || accountId.startsWith('acct_seed_');
+}
+
+/** True when onboard should create (or recreate) a Connect account row in Stripe. */
+export function shouldCreateConnectAccount(
+  accountId: string | null | undefined,
+  mockMode: boolean,
+): boolean {
+  if (!accountId) return true;
+  if (mockMode) return false;
+  return isPlaceholderConnectAccountId(accountId);
 }

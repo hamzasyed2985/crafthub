@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
 import { Page } from '@/components/page';
 import {
+  deliverVendorOrder,
   fetchVendorOrder,
   fulfillVendorOrder,
   shipVendorOrder,
@@ -64,6 +64,20 @@ export default function VendorOrderDetailPage() {
     }
   }
 
+  async function onDeliver() {
+    setBusy(true);
+    setNote(null);
+    try {
+      const vo = await deliverVendorOrder(params.id);
+      setOrder(vo);
+      setNote('Marked as delivered.');
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'Deliver failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error) {
     return (
       <Page size="reading">
@@ -81,12 +95,14 @@ export default function VendorOrderDetailPage() {
 
   const canFulfill = order.status === 'paid';
   const canShip = order.status === 'paid' || order.status === 'fulfilling';
+  const canDeliver = order.status === 'shipped';
 
   return (
     <Page size="reading">
       <h1 className="font-display text-3xl">Order</h1>
       <p className="mt-2 text-muted">
-        Status <strong>{formatStatusLabel(order.status)}</strong> · Net <Price cents={order.vendorNetCents} />
+        Status <strong>{formatStatusLabel(order.status)}</strong> · Net{' '}
+        <Price cents={order.vendorNetCents} />
       </p>
 
       <section className="mt-8">
@@ -103,8 +119,7 @@ export default function VendorOrderDetailPage() {
           ) : null}
           <br />
           {order.order.shipCity}
-          {order.order.shipRegion ? `, ${order.order.shipRegion}` : ''}{' '}
-          {order.order.shipPostalCode}
+          {order.order.shipRegion ? `, ${order.order.shipRegion}` : ''} {order.order.shipPostalCode}
           <br />
           {order.order.shipCountry}
         </p>
@@ -142,7 +157,7 @@ export default function VendorOrderDetailPage() {
         </dl>
       </section>
 
-      {canFulfill || canShip ? (
+      {canFulfill || canShip || canDeliver ? (
         <section className="mt-10 space-y-4 border-t border-border pt-8">
           <h2 className="font-display text-xl">Fulfillment</h2>
           {canFulfill ? (
@@ -179,6 +194,21 @@ export default function VendorOrderDetailPage() {
               </Button>
             </form>
           ) : null}
+          {canDeliver ? (
+            <div className="space-y-3">
+              {order.shippedAt ? (
+                <p className="text-sm text-muted">
+                  Shipped {new Date(order.shippedAt).toLocaleString()}
+                  {order.trackingNumber
+                    ? ` · ${order.carrier ? `${order.carrier} ` : ''}${order.trackingNumber}`
+                    : null}
+                </p>
+              ) : null}
+              <Button size="sm" disabled={busy} onClick={() => void onDeliver()}>
+                Mark delivered
+              </Button>
+            </div>
+          ) : null}
           {note ? <p className="text-sm">{note}</p> : null}
         </section>
       ) : (
@@ -191,6 +221,8 @@ export default function VendorOrderDetailPage() {
                 : null}
             </p>
           ) : null}
+          {order.status === 'delivered' ? <p className="mt-2">Delivered to the buyer.</p> : null}
+          {note ? <p className="mt-2">{note}</p> : null}
         </section>
       )}
     </Page>

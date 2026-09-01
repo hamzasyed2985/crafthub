@@ -2,24 +2,48 @@ import { prisma, type Prisma } from '@crafthub/db';
 
 type Tx = Prisma.TransactionClient;
 
+function outstandingDebtFromTotals(debt: number, offset: number): number {
+  return Math.max(0, debt - offset);
+}
+
+/** Batch outstanding debt per vendor (refund_debt − debt_offset, never negative). */
+export async function getVendorOutstandingDebtCentsMap(
+  vendorIds: string[],
+  db: typeof prisma | Tx = prisma,
+): Promise<Map<string, number>> {
+  const uniqueIds = [...new Set(vendorIds)];
+  if (uniqueIds.length === 0) return new Map();
+
+  const grouped = await db.vendorLedgerEntry.groupBy({
+    by: ['vendorId', 'kind'],
+    where: { vendorId: { in: uniqueIds } },
+    _sum: { amountCents: true },
+  });
+
+  const totals = new Map<string, { debt: number; offset: number }>();
+  for (const row of grouped) {
+    const current = totals.get(row.vendorId) ?? { debt: 0, offset: 0 };
+    const sum = row._sum.amountCents ?? 0;
+    if (row.kind === 'refund_debt') current.debt += sum;
+    else if (row.kind === 'debt_offset') current.offset += sum;
+    totals.set(row.vendorId, current);
+  }
+
+  return new Map(
+    uniqueIds.map((vendorId) => {
+      const { debt, offset } = totals.get(vendorId) ?? { debt: 0, offset: 0 };
+      return [vendorId, outstandingDebtFromTotals(debt, offset)] as const;
+    }),
+  );
+}
+
 /** Outstanding vendor debt = refund_debt − debt_offset (never negative). */
 export async function getVendorOutstandingDebtCents(
   vendorId: string,
   db: typeof prisma | Tx = prisma,
 ): Promise<number> {
-  const grouped = await db.vendorLedgerEntry.groupBy({
-    by: ['kind'],
-    where: { vendorId },
-    _sum: { amountCents: true },
-  });
-  let debt = 0;
-  let offset = 0;
-  for (const row of grouped) {
-    const sum = row._sum.amountCents ?? 0;
-    if (row.kind === 'refund_debt') debt += sum;
-    else if (row.kind === 'debt_offset') offset += sum;
-  }
-  return Math.max(0, debt - offset);
+  const map = await getVendorOutstandingDebtCentsMap([vendorId], db);
+  return map.get(vendorId) ?? 0;
 }
 
 export async function getDebtReviewThresholdCents(

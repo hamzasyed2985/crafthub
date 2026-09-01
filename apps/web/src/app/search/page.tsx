@@ -13,8 +13,10 @@ function SearchClient() {
   const params = useSearchParams();
   const initial = params.get('q') ?? '';
   const initialPage = Math.max(1, Number(params.get('page')) || 1);
+  const initialShopPage = Math.max(1, Number(params.get('shopPage')) || 1);
   const [q, setQ] = useState(initial);
   const [page, setPage] = useState(initialPage);
+  const [shopPage, setShopPage] = useState(initialShopPage);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [shops, setShops] = useState<VendorSummary[]>([]);
   const [meta, setMeta] = useState<{
@@ -22,6 +24,8 @@ function SearchClient() {
     totalShops: number;
     page: number;
     limit: number;
+    shopPage: number;
+    shopLimit: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +33,8 @@ function SearchClient() {
   useEffect(() => {
     setQ(initial);
     setPage(initialPage);
-  }, [initial, initialPage]);
+    setShopPage(initialShopPage);
+  }, [initial, initialPage, initialShopPage]);
 
   useEffect(() => {
     if (!initial.trim()) {
@@ -39,7 +44,7 @@ function SearchClient() {
       return;
     }
     setLoading(true);
-    searchCatalog(initial, page, 24)
+    searchCatalog(initial, page, 24, shopPage, 24)
       .then((res) => {
         setProducts(res.products);
         setShops(res.shops);
@@ -48,12 +53,21 @@ function SearchClient() {
           totalShops: res.meta.totalShops,
           page: res.meta.page,
           limit: res.meta.limit,
+          shopPage: res.meta.shopPage,
+          shopLimit: res.meta.shopLimit,
         });
         setError(null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Search failed'))
       .finally(() => setLoading(false));
-  }, [initial, page]);
+  }, [initial, page, shopPage]);
+
+  function syncUrl(next: { page: number; shopPage: number }) {
+    const qs = new URLSearchParams({ q: initial });
+    if (next.page > 1) qs.set('page', String(next.page));
+    if (next.shopPage > 1) qs.set('shopPage', String(next.shopPage));
+    router.replace(`/search?${qs}`, { scroll: false });
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -61,9 +75,14 @@ function SearchClient() {
     router.push(next ? `/search?q=${encodeURIComponent(next)}` : '/search');
   }
 
-  function onPageChange(next: number) {
+  function onProductPageChange(next: number) {
     setPage(next);
-    router.replace(`/search?q=${encodeURIComponent(initial)}&page=${next}`, { scroll: false });
+    syncUrl({ page: next, shopPage });
+  }
+
+  function onShopPageChange(next: number) {
+    setShopPage(next);
+    syncUrl({ page, shopPage: next });
   }
 
   return (
@@ -112,6 +131,14 @@ function SearchClient() {
               </li>
             ))}
           </ul>
+          {meta ? (
+            <PaginationControls
+              page={meta.shopPage}
+              limit={meta.shopLimit}
+              total={meta.totalShops}
+              onPageChange={onShopPageChange}
+            />
+          ) : null}
         </section>
       ) : null}
 
@@ -141,7 +168,7 @@ function SearchClient() {
               page={meta.page}
               limit={meta.limit}
               total={meta.totalProducts}
-              onPageChange={onPageChange}
+              onPageChange={onProductPageChange}
             />
           ) : null}
         </section>

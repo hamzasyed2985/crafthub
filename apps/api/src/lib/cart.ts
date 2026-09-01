@@ -12,7 +12,7 @@ const cartItemInclude = {
       product: {
         include: {
           media: { orderBy: { sortOrder: 'asc' as const }, take: 1 },
-          shop: { include: { vendor: true } },
+          shop: { include: { vendor: { include: { stripeAccount: true } } } },
         },
       },
     },
@@ -83,6 +83,7 @@ async function loadCart(cartId: string) {
 export async function reconcileCart(cartId: string): Promise<CartWarning[]> {
   const cart = await loadCart(cartId);
   const warnings: CartWarning[] = [];
+  const unpaidVendors = new Set<string>();
 
   for (const item of cart.items) {
     const { variant } = item;
@@ -111,6 +112,17 @@ export async function reconcileCart(cartId: string): Promise<CartWarning[]> {
         message: `${product.title} quantity reduced to ${variant.stockQty} (stock limit).`,
       });
     }
+
+    if (!product.shop.vendor.stripeAccount?.chargesEnabled) {
+      unpaidVendors.add(product.shop.vendor.displayName);
+    }
+  }
+
+  for (const name of unpaidVendors) {
+    warnings.push({
+      code: 'VENDOR_NOT_PAYABLE',
+      message: `${name} has not finished Stripe setup — remove their items to check out.`,
+    });
   }
 
   return warnings;
@@ -126,6 +138,7 @@ export function serializeCart(
       displayName: string;
       slug: string;
       city: string | null;
+      chargesEnabled: boolean;
     };
     shop: {
       id: string;
@@ -170,6 +183,7 @@ export function serializeCart(
           displayName: vendor.displayName,
           slug: vendor.slug,
           city: vendor.city,
+          chargesEnabled: Boolean(vendor.stripeAccount?.chargesEnabled),
         },
         shop: {
           id: shop.id,
@@ -238,7 +252,9 @@ export async function assertPurchasableVariant(variantId: string) {
   const variant = await prisma.productVariant.findUnique({
     where: { id: variantId },
     include: {
-      product: { include: { shop: { include: { vendor: true } } } },
+      product: {
+        include: { shop: { include: { vendor: { include: { stripeAccount: true } } } } },
+      },
     },
   });
 
@@ -250,6 +266,13 @@ export async function assertPurchasableVariant(variantId: string) {
   }
   if (variant.product.shop.vendor.status !== 'approved') {
     throw new AppError(400, 'SHOP_UNAVAILABLE', 'This shop is not available');
+  }
+  if (!variant.product.shop.vendor.stripeAccount?.chargesEnabled) {
+    throw new AppError(
+      400,
+      'VENDOR_NOT_PAYABLE',
+      `${variant.product.shop.vendor.displayName} has not completed Stripe onboarding yet`,
+    );
   }
   if (variant.stockQty <= 0) {
     throw new AppError(400, 'OUT_OF_STOCK', 'This item is out of stock');

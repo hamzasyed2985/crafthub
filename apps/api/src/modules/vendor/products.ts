@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@crafthub/db';
-import { addMediaSchema, createProductSchema, updateProductSchema } from '@crafthub/shared';
+import { addMediaSchema, createProductSchema, PRODUCT_STATUSES, updateProductSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination, routeParam, slugify } from '../../lib/helpers.js';
 import { productInclude, serializeProduct } from '../../lib/serializers.js';
@@ -17,8 +17,22 @@ vendorProductsRouter.get('/', async (req: VendorRequest, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const statusRaw = typeof req.query.status === 'string' ? req.query.status.trim() : '';
+    const status =
+      statusRaw && (PRODUCT_STATUSES as readonly string[]).includes(statusRaw)
+        ? (statusRaw as (typeof PRODUCT_STATUSES)[number])
+        : undefined;
+    if (statusRaw && !status) {
+      throw new AppError(
+        400,
+        'INVALID_STATUS',
+        `status must be one of: ${PRODUCT_STATUSES.join(', ')}`,
+      );
+    }
+
     const where = {
       shopId: req.shopId,
+      ...(status ? { status } : {}),
       ...(q
         ? {
             OR: [
@@ -43,7 +57,7 @@ vendorProductsRouter.get('/', async (req: VendorRequest, res, next) => {
     ]);
     res.json({
       data: products.map((p) => serializeProduct(p)),
-      meta: { total, page, limit, q },
+      meta: { total, page, limit, q, status: status ?? null },
     });
   } catch (err) {
     next(err);

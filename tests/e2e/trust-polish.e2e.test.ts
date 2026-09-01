@@ -126,6 +126,14 @@ describe('e2e · trust & polish (phase 6)', () => {
       body: JSON.stringify({ trackingNumber: 'P6-TRACK', carrier: 'TCS' }),
     });
 
+    const eligibility = await expectOk<{
+      data: { eligible: boolean; reason: string };
+    }>(`/api/v1/products/${mugProductId}/reviews/eligibility`, {
+      token: buyer.accessToken,
+    });
+    expect(eligibility.data.eligible).toBe(true);
+    expect(eligibility.data.reason).toBe('OK');
+
     const shippedEmails = await prisma.emailOutbox.findMany({
       where: { template: 'order.shipped', toEmail: buyer.user.email },
       orderBy: { createdAt: 'desc' },

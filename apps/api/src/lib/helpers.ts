@@ -18,6 +18,20 @@ export function parsePagination(query: {
   return { page, limit, skip: (page - 1) * limit };
 }
 
+/** Named page/limit pair for endpoints with multiple paginated lists (e.g. search shops vs products). */
+export function parseNamedPagination(
+  query: Record<string, unknown>,
+  prefix: string,
+  fallbackLimit = 24,
+): { page: number; limit: number; skip: number } {
+  const page = Math.max(1, Number(query[`${prefix}Page`]) || 1);
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(query[`${prefix}Limit`]) || fallbackLimit),
+  );
+  return { page, limit, skip: (page - 1) * limit };
+}
+
 export function routeParam(value: string | string[] | undefined, name = 'id'): string {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) {

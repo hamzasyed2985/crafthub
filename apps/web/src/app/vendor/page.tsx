@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { formatStatusLabel } from '@/lib/format-status';
 import { pieColorAt, PIE_SEMANTIC } from '@/lib/pie-colors';
+import { isStripeConnected } from '@/lib/stripe-status';
 
 const SECTIONS = [
   {
@@ -66,11 +67,12 @@ export default function VendorDashboardPage() {
   }, []);
 
   if (error) {
+    const pending = /must be approved|not approved/i.test(error);
     return (
       <Page size="default">
         <p>{error}</p>
-        <Link href="/vendor/apply" className="text-accent">
-          Apply to sell
+        <Link href={pending ? '/vendor/onboarding' : '/vendor/apply'} className="text-accent">
+          {pending ? 'View onboarding' : 'Apply to sell'}
         </Link>
       </Page>
     );
@@ -89,8 +91,7 @@ export default function VendorDashboardPage() {
     | { chargesEnabled?: boolean; onboardingComplete?: boolean }
     | null
     | undefined;
-  const stripeIncomplete =
-    status === 'approved' && (!stripe?.chargesEnabled || !stripe?.onboardingComplete);
+  const stripeIncomplete = status === 'approved' && !isStripeConnected(stripe);
 
   const orderSlices = Object.entries(dash.ordersByStatus ?? {})
     .sort((a, b) => b[1] - a[1])
@@ -162,6 +163,13 @@ export default function VendorDashboardPage() {
             finish onboarding
           </Link>{' '}
           so buyers can check out.
+        </p>
+      ) : status === 'approved' && isStripeConnected(stripe) ? (
+        <p className="mt-6 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm">
+          Stripe Connected —{' '}
+          <Link href="/vendor/onboarding" className="underline">
+            update payout details
+          </Link>
         </p>
       ) : null}
 

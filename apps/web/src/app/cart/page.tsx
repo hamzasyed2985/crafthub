@@ -36,6 +36,10 @@ export default function CartPage() {
     );
   }
 
+  const checkoutBlocked =
+    cart.groups.some((g) => g.vendor.chargesEnabled === false) ||
+    cart.warnings.some((w) => w.code === 'VENDOR_NOT_PAYABLE');
+
   return (
     <Page size="reading">
       <div className="flex items-center justify-between gap-4">
@@ -60,6 +64,11 @@ export default function CartPage() {
             <p className="text-sm text-subtle">
               Ships from {group.shop.shipsFromCity ?? 'the maker'}
             </p>
+            {group.vendor.chargesEnabled === false ? (
+              <p className="mt-2 text-sm text-danger">
+                This shop cannot accept checkout yet — remove these items to continue.
+              </p>
+            ) : null}
             <ul className="mt-4 space-y-4">
               {group.items.map((item) => (
                 <li key={item.id} className="flex gap-4">
@@ -146,9 +155,15 @@ export default function CartPage() {
           <span>Total</span>
           <Price cents={cart.totalCents} />
         </div>
-        <Link href="/checkout">
-          <Button className="mt-4 w-full">Checkout</Button>
-        </Link>
+        {checkoutBlocked ? (
+          <p className="mt-4 text-sm text-danger">
+            Remove items from shops that are not Stripe-ready before checkout.
+          </p>
+        ) : (
+          <Link href="/checkout">
+            <Button className="mt-4 w-full">Checkout</Button>
+          </Link>
+        )}
       </div>
     </Page>
   );

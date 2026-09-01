@@ -12,7 +12,7 @@ export const vendorOrdersRouter = Router();
 
 vendorOrdersRouter.use(requireAuth, requireVendor({ requireApproved: true }));
 
-const FILTERABLE_STATUSES = new Set(['paid', 'fulfilling', 'shipped'] as const);
+const FILTERABLE_STATUSES = new Set(['paid', 'fulfilling', 'shipped', 'delivered'] as const);
 
 const vendorOrderInclude = {
   items: true,
@@ -85,7 +85,7 @@ vendorOrdersRouter.get('/', async (req: VendorRequest, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
     const statusRaw = typeof req.query.status === 'string' ? req.query.status : undefined;
-    if (statusRaw && !FILTERABLE_STATUSES.has(statusRaw as 'paid' | 'fulfilling' | 'shipped')) {
+    if (statusRaw && !FILTERABLE_STATUSES.has(statusRaw as 'paid' | 'fulfilling' | 'shipped' | 'delivered')) {
       throw new AppError(
         400,
         'INVALID_STATUS',
@@ -256,6 +256,55 @@ vendorOrdersRouter.post('/:id/ship', async (req: VendorRequest, res, next) => {
         // non-fatal
       }
     }
+
+    res.json({ data: { vendorOrder: serializeVendorOrder(updated) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Mark a shipped vendor order as delivered (buyer received the package). */
+vendorOrdersRouter.post('/:id/deliver', async (req: VendorRequest, res, next) => {
+  try {
+    const id = routeParam(req.params.id);
+    const actorId = req.user!.sub;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.vendorOrder.findFirst({
+        where: { id, vendorId: req.vendorId! },
+        include: vendorOrderInclude,
+      });
+      if (!row) throw new AppError(404, 'NOT_FOUND', 'Vendor order not found');
+      if (row.status !== 'shipped') {
+        throw new AppError(
+          400,
+          'INVALID_STATUS',
+          `Cannot mark delivered from status ${row.status}`,
+        );
+      }
+
+      await tx.vendorOrder.update({
+        where: { id: row.id },
+        data: { status: 'delivered' },
+      });
+
+      await syncParentOrderFulfillmentStatus(tx, row.orderId);
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: 'vendor_order.deliver',
+          entity: 'vendor_order',
+          entityId: row.id,
+          meta: { from: 'shipped', to: 'delivered' },
+        },
+      });
+
+      return tx.vendorOrder.findFirstOrThrow({
+        where: { id: row.id },
+        include: vendorOrderInclude,
+      });
+    });
 
     res.json({ data: { vendorOrder: serializeVendorOrder(updated) } });
   } catch (err) {

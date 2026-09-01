@@ -68,7 +68,13 @@ Handle at least:
 3. Account Link → vendor completes KYC  
 4. `account.updated` webhook sets `charges_enabled` / `payouts_enabled`  
 
-Vendors without completed onboarding cannot receive payable orders (block their products at checkout or at publish time).
+Vendors without completed onboarding (`charges_enabled`) cannot receive payable orders:
+
+- Add-to-cart and cart reconcile reject / warn on non-payable shops  
+- Checkout already blocks with `VENDOR_NOT_PAYABLE`  
+- Shop + PDP surfaces a clear “not ready for checkout” message  
+
+Connected readiness in the seller UI requires both `charges_enabled` and `onboarding_complete` (`details_submitted`).
 
 ## Test mode demo
 

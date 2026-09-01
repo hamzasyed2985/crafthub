@@ -4,6 +4,7 @@ import { createReviewSchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination, routeParam } from '../../lib/helpers.js';
 import { requireAuth, type AuthedRequest } from '../../middleware/auth.js';
+import { optionalAuth } from '../../middleware/optional-auth.js';
 
 export const reviewsRouter = Router();
 
@@ -23,6 +24,52 @@ function serializeReview(r: {
     user: { id: r.user.id, name: r.user.name ?? 'Buyer' },
     createdAt: r.createdAt.toISOString(),
   };
+}
+
+type EligibilityReason =
+  | 'UNAUTHENTICATED'
+  | 'NOT_FOUND'
+  | 'ALREADY_REVIEWED'
+  | 'NOT_ELIGIBLE'
+  | 'OK';
+
+async function resolveReviewEligibility(
+  productId: string,
+  userId: string | undefined,
+): Promise<{ eligible: boolean; reason: EligibilityReason }> {
+  if (!userId) {
+    return { eligible: false, reason: 'UNAUTHENTICATED' };
+  }
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, status: 'active' },
+    select: { id: true },
+  });
+  if (!product) {
+    return { eligible: false, reason: 'NOT_FOUND' };
+  }
+
+  const existing = await prisma.review.findUnique({
+    where: { productId_userId: { productId, userId } },
+  });
+  if (existing) {
+    return { eligible: false, reason: 'ALREADY_REVIEWED' };
+  }
+
+  const purchased = await prisma.orderItem.findFirst({
+    where: {
+      productId,
+      vendorOrder: {
+        status: { in: ['shipped', 'delivered'] },
+        order: { buyerId: userId, status: { in: ['paid', 'processing', 'completed'] } },
+      },
+    },
+  });
+  if (!purchased) {
+    return { eligible: false, reason: 'NOT_ELIGIBLE' };
+  }
+
+  return { eligible: true, reason: 'OK' };
 }
 
 /** Public: list reviews for a product */
@@ -68,6 +115,24 @@ reviewsRouter.get('/products/:productId/reviews', async (req, res, next) => {
   }
 });
 
+/** Optional auth: whether the current user can leave a verified review */
+reviewsRouter.get(
+  '/products/:productId/reviews/eligibility',
+  optionalAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const productId = routeParam(req.params.productId, 'productId');
+      const result = await resolveReviewEligibility(productId, req.user?.sub);
+      if (result.reason === 'NOT_FOUND') {
+        throw new AppError(404, 'NOT_FOUND', 'Product not found');
+      }
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 /** Auth: create review after verified purchase (shipped/delivered) */
 reviewsRouter.post(
   '/products/:productId/reviews',
@@ -78,34 +143,25 @@ reviewsRouter.post(
       const input = createReviewSchema.parse(req.body);
       const userId = req.user!.sub;
 
-      const product = await prisma.product.findFirst({
-        where: { id: productId, status: 'active' },
-        select: { id: true },
-      });
-      if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
-
-      const purchased = await prisma.orderItem.findFirst({
-        where: {
-          productId,
-          vendorOrder: {
-            status: { in: ['shipped', 'delivered'] },
-            order: { buyerId: userId, status: { in: ['paid', 'processing', 'completed'] } },
-          },
-        },
-      });
-      if (!purchased) {
-        throw new AppError(
-          403,
-          'NOT_ELIGIBLE',
-          'You can review after a purchased item has shipped',
-        );
-      }
-
-      const existing = await prisma.review.findUnique({
-        where: { productId_userId: { productId, userId } },
-      });
-      if (existing) {
-        throw new AppError(409, 'ALREADY_REVIEWED', 'You already reviewed this product');
+      const eligibility = await resolveReviewEligibility(productId, userId);
+      switch (eligibility.reason) {
+        case 'NOT_FOUND':
+          throw new AppError(404, 'NOT_FOUND', 'Product not found');
+        case 'ALREADY_REVIEWED':
+          throw new AppError(409, 'ALREADY_REVIEWED', 'You already reviewed this product');
+        case 'NOT_ELIGIBLE':
+        case 'UNAUTHENTICATED':
+          throw new AppError(
+            403,
+            'NOT_ELIGIBLE',
+            'You can review after a purchased item has shipped',
+          );
+        case 'OK':
+          break;
+        default: {
+          const _exhaustive: never = eligibility.reason;
+          throw new AppError(500, 'INTERNAL', `Unexpected eligibility: ${_exhaustive}`);
+        }
       }
 
       const review = await prisma.review.create({

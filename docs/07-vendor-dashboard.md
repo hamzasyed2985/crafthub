@@ -30,11 +30,13 @@ Give artisans a simple “run my shop” cockpit: onboarding, catalog, orders, e
 
 1. Submit apply (bio, city, craft categories, ID-ish attestation checkbox)  
 2. Admin approves  
-3. Complete Stripe Connect Express onboarding  
-4. Add shop banner + policies (shipping, returns)  
-5. Publish first product  
+3. Shop branding & policies (logo or banner + shipping + returns)  
+4. Complete Stripe Connect Express onboarding (`charges_enabled` **and** `details_submitted` / `onboarding_complete`)  
+5. Publish first active product  
 
-Block “Go live” until Stripe `charges_enabled` (and ideally `payouts_enabled`).
+Pending vendors can edit shop + onboarding only; Orders / Products / Earnings require approval.
+
+Block “Go live” / green Connected until Stripe `charges_enabled` **and** `onboarding_complete`.
 
 ## Dashboard home widgets
 
@@ -52,9 +54,9 @@ Block “Go live” until Stripe `charges_enabled` (and ideally `payouts_enabled
 
 ## Orders
 
-- List filters: paid, fulfilling, shipped  
+- List filters: paid, fulfilling, shipped, delivered  
 - Detail: buyer shipping address, line items, earnings for this order  
-- Actions: mark fulfilling, mark shipped (+ optional tracking), cancel if policy allows  
+- Actions: mark fulfilling, mark shipped (+ optional tracking), mark delivered  
 
 Vendors **cannot** see other vendors’ data. Vendors **cannot** change platform commission.
 

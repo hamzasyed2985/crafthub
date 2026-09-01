@@ -32,9 +32,10 @@ Rate limits: in-memory on register/login/refresh/forgot/reset (see [11 — Secur
 | GET | `/products` | marketplace feed — `q`, `category`, `shop`, `minPrice`, `maxPrice`, `sort` |
 | GET | `/products/:id` | PDP by id |
 | GET | `/categories` | flat list |
-| GET | `/search` | catalog search |
+| GET | `/search` | catalog search — `page`/`limit` for products, `shopPage`/`shopLimit` for makers |
 | GET | `/products/:productId/reviews` | paginated |
-| POST | `/products/:productId/reviews` | auth; verified purchase required |
+| GET | `/products/:productId/reviews/eligibility` | optional auth; `{ eligible, reason }` |
+| POST | `/products/:productId/reviews` | auth; verified purchase required (shipped/delivered) |
 
 ## Cart
 
@@ -74,17 +75,20 @@ Prefix: `/vendor` — requires `vendor` role + approved profile where noted.
 | GET | `/vendor/me` | shop summary |
 | PATCH | `/vendor/shop` | name, bio, banner, policies |
 | GET | `/vendor/dashboard` | widgets |
-| POST | `/vendor/stripe/onboard` | Account Link URL |
-| POST | `/vendor/stripe/refresh` | refresh onboarding link |
-| GET | `/vendor/stripe/status` | charges/payouts flags |
-| GET/POST | `/vendor/products` | list / create |
+| POST | `/vendor/stripe/onboard` | Create Connect account + onboarding link |
+| POST | `/vendor/stripe/refresh` | Sync flags after Stripe return |
+| POST | `/vendor/stripe/manage` | `{ action: "update" \| "dashboard" }` — update payout details or Express dashboard |
+| GET | `/vendor/stripe/status` | Connect flags |
+| GET/POST | `/vendor/products` | list / create — list accepts `?status=draft\|active\|archived` |
 | GET/PATCH/DELETE | `/vendor/products/:id` | CRUD |
 | POST/DELETE | `/vendor/products/:id/media` | add / remove media |
-| GET | `/vendor/orders` | vendor order slices |
+| GET | `/vendor/orders` | vendor order slices — filter `paid\|fulfilling\|shipped\|delivered` |
 | GET | `/vendor/orders/:id` | |
 | POST | `/vendor/orders/:id/fulfill` | optional step |
 | POST | `/vendor/orders/:id/ship` | tracking optional |
+| POST | `/vendor/orders/:id/deliver` | shipped → delivered |
 | GET | `/vendor/earnings` | aggregates + debt hints |
+| GET | `/vendor/earnings/transfers` | paginated Connect transfer history |
 
 ## Admin
 
@@ -93,16 +97,16 @@ Prefix: `/admin` — `admin` role only. Finance routes share `/admin` prefix.
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/admin/metrics` | GMV, orders, vendors, commission |
-| GET | `/admin/finance` | commission by vendor, recent slices |
+| GET | `/admin/finance` | commission summary — `vendorPage`/`vendorLimit`, `recentPage`/`recentLimit` |
 | GET | `/admin/vendors` | list / search |
 | GET/PATCH | `/admin/vendors/:id` | approve / suspend |
-| GET | `/admin/vendors/:id/ledger` | refund debt entries |
+| GET | `/admin/vendors/:id/ledger` | refund debt entries — paginated |
 | GET | `/admin/orders` | all orders |
 | GET | `/admin/orders/:id` | detail + debt per vendor slice |
 | POST | `/admin/orders/:id/refund` | Stripe refund + ledger |
 | POST | `/admin/vendor-orders/:vendorOrderId/retry-transfer` | Retry failed Connect payout |
 | GET/PATCH | `/admin/settings` | commission_bps, debt threshold |
-| GET | `/admin/audit-logs` | |
+| GET | `/admin/audit-logs` | paginated — `?action=` filter |
 | POST | `/admin/products/:id/unpublish` | moderation |
 
 ## AI

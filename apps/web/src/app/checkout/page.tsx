@@ -102,6 +102,25 @@ export default function CheckoutPage() {
     );
   }
 
+  const checkoutBlocked =
+    cart.groups.some((g) => g.vendor.chargesEnabled === false) ||
+    cart.warnings.some((w) => w.code === 'VENDOR_NOT_PAYABLE');
+
+  if (checkoutBlocked) {
+    return (
+      <Page size="narrow" y="lg" className="text-center">
+        <h1 className="font-display text-3xl">Checkout unavailable</h1>
+        <p className="mt-3 text-muted">
+          One or more shops in your cart have not finished Stripe setup. Remove those items and try
+          again.
+        </p>
+        <Link href="/cart" className="mt-6 inline-block text-accent">
+          Back to cart
+        </Link>
+      </Page>
+    );
+  }
+
   return (
     <Page size="default" className="grid gap-10 lg:grid-cols-2">
       <div>

@@ -3,45 +3,57 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@crafthub/ui';
 import { useAuth } from '@/components/auth-provider';
+import { PaginationControls } from '@/components/pagination-controls';
 import {
   createProductReview,
+  fetchProductReviewEligibility,
   fetchProductReviews,
   type ReviewDto,
 } from '@/lib/api';
 
-export function ProductReviews({
-  productId,
-  canReview = false,
-}: {
-  productId: string;
-  canReview?: boolean;
-}) {
+export function ProductReviews({ productId }: { productId: string }) {
   const { user, loading: authLoading } = useAuth();
   const [reviews, setReviews] = useState<ReviewDto[]>([]);
+  const [reviewTotal, setReviewTotal] = useState(0);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewLimit, setReviewLimit] = useState(24);
   const [avg, setAvg] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [canReview, setCanReview] = useState(false);
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  // Wait for auth before showing the form so SSR and first client render match.
   const showReviewForm = canReview && !authLoading && Boolean(user);
 
-  async function load() {
-    try {
-      const res = await fetchProductReviews(productId);
-      setReviews(res.reviews);
-      setAvg(res.meta.averageRating);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load reviews');
-    }
-  }
+  useEffect(() => {
+    setReviewPage(1);
+  }, [productId]);
 
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
+    fetchProductReviews(productId, reviewPage, 24)
+      .then((res) => {
+        setReviews(res.reviews);
+        setReviewTotal(res.meta.total);
+        setReviewLimit(res.meta.limit);
+        setAvg(res.meta.averageRating);
+        setReviewCount(res.meta.reviewCount);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load reviews'));
+  }, [productId, reviewPage]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setCanReview(false);
+      return;
+    }
+    fetchProductReviewEligibility(productId)
+      .then((res) => setCanReview(res.eligible))
+      .catch(() => setCanReview(false));
+  }, [productId, user, authLoading]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,8 +62,15 @@ export function ProductReviews({
     try {
       await createProductReview(productId, { rating, body });
       setBody('');
+      setCanReview(false);
       setNote('Thanks for your review.');
-      await load();
+      setReviewPage(1);
+      const res = await fetchProductReviews(productId, 1, 24);
+      setReviews(res.reviews);
+      setReviewTotal(res.meta.total);
+      setReviewLimit(res.meta.limit);
+      setAvg(res.meta.averageRating);
+      setReviewCount(res.meta.reviewCount);
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'Could not post review');
     } finally {
@@ -63,7 +82,9 @@ export function ProductReviews({
     <section className="mt-12 border-t border-border pt-10">
       <h2 className="font-display text-2xl">Reviews</h2>
       <p className="mt-1 text-sm text-subtle">
-        {avg != null ? `Average ${avg} / 5 · ${reviews.length} review(s)` : 'No reviews yet'}
+        {reviewCount > 0
+          ? `Average ${avg ?? '—'} / 5 · ${reviewCount} review${reviewCount === 1 ? '' : 's'}`
+          : 'No reviews yet'}
       </p>
       {error ? <p className="mt-2 text-danger">{error}</p> : null}
 
@@ -80,6 +101,13 @@ export function ProductReviews({
           </li>
         ))}
       </ul>
+
+      <PaginationControls
+        page={reviewPage}
+        limit={reviewLimit}
+        total={reviewTotal}
+        onPageChange={setReviewPage}
+      />
 
       {showReviewForm ? (
         <form onSubmit={(e) => void onSubmit(e)} className="mt-8 space-y-3">

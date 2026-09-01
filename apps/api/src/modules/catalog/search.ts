@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@crafthub/db';
-import { parsePagination } from '../../lib/helpers.js';
+import { parseNamedPagination, parsePagination } from '../../lib/helpers.js';
 import { serializeProduct, serializeVendor } from '../../lib/serializers.js';
 
 export const searchRouter = Router();
@@ -9,17 +9,26 @@ const productInclude = {
   variants: true,
   media: { orderBy: { sortOrder: 'asc' as const } },
   category: true,
-  shop: { include: { vendor: true } },
+  shop: { include: { vendor: { include: { stripeAccount: true } } } },
 } as const;
 
 searchRouter.get('/search', async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
+    const shopPage = parseNamedPagination(req.query as Record<string, unknown>, 'shop', limit);
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q) {
       res.json({
         data: { products: [], shops: [] },
-        meta: { totalProducts: 0, totalShops: 0, page, limit, q: '' },
+        meta: {
+          totalProducts: 0,
+          totalShops: 0,
+          page,
+          limit,
+          shopPage: shopPage.page,
+          shopLimit: shopPage.limit,
+          q: '',
+        },
       });
       return;
     }
@@ -60,7 +69,8 @@ searchRouter.get('/search', async (req, res, next) => {
         where: shopWhere,
         include: { shop: true, stripeAccount: true },
         orderBy: { displayName: 'asc' },
-        take: Math.min(10, limit),
+        skip: shopPage.skip,
+        take: shopPage.limit,
       }),
     ]);
 
@@ -69,7 +79,15 @@ searchRouter.get('/search', async (req, res, next) => {
         products: products.map((p) => serializeProduct(p)),
         shops: shops.map((v) => serializeVendor(v)),
       },
-      meta: { totalProducts, totalShops, page, limit, q },
+      meta: {
+        totalProducts,
+        totalShops,
+        page,
+        limit,
+        shopPage: shopPage.page,
+        shopLimit: shopPage.limit,
+        q,
+      },
     });
   } catch (err) {
     next(err);
