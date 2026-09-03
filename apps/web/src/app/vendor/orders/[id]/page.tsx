@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import {
   deliverVendorOrder,
@@ -80,7 +81,7 @@ export default function VendorOrderDetailPage() {
 
   if (error) {
     return (
-      <Page size="reading">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -88,8 +89,8 @@ export default function VendorOrderDetailPage() {
 
   if (!order)
     return (
-      <Page size="reading">
-        <p className="text-subtle">Loading…</p>
+      <Page size="wide">
+        <PageLoader />
       </Page>
     );
 
@@ -98,7 +99,7 @@ export default function VendorOrderDetailPage() {
   const canDeliver = order.status === 'shipped';
 
   return (
-    <Page size="reading">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Order</h1>
       <p className="mt-2 text-muted">
         Status <strong>{formatStatusLabel(order.status)}</strong> · Net{' '}

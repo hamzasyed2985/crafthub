@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { SITE_SHELL_INNER_CLASS } from '@/lib/site-shell';
 
 const APPROVED_JUMP = [
   { href: '/vendor', label: 'Dashboard' },
@@ -53,7 +54,7 @@ export function SellerNav() {
     <div className="border-b border-border bg-elevated/60">
       <nav
         aria-label="Seller breadcrumb"
-        className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-3 text-sm"
+        className={`flex flex-wrap items-center gap-2 py-3 text-sm ${SITE_SHELL_INNER_CLASS}`}
       >
         <Link href={homeHref} className="font-semibold text-foreground hover:text-accent">
           Seller

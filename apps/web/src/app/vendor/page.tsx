@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { SimplePieChart } from '@/components/simple-pie-chart';
 import {
@@ -69,7 +70,7 @@ export default function VendorDashboardPage() {
   if (error) {
     const pending = /must be approved|not approved/i.test(error);
     return (
-      <Page size="default">
+      <Page size="wide">
         <p>{error}</p>
         <Link href={pending ? '/vendor/onboarding' : '/vendor/apply'} className="text-accent">
           {pending ? 'View onboarding' : 'Apply to sell'}
@@ -80,8 +81,8 @@ export default function VendorDashboardPage() {
 
   if (!dash)
     return (
-      <Page size="default">
-        <p className="text-subtle">Loading…</p>
+      <Page size="wide">
+        <PageLoader />
       </Page>
     );
 
@@ -122,7 +123,7 @@ export default function VendorDashboardPage() {
     : [];
 
   return (
-    <Page size="default">
+    <Page size="wide">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl">Dashboard</h1>

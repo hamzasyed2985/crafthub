@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { useCart } from '@/components/cart-provider';
 
@@ -11,7 +12,7 @@ export default function CartPage() {
   if (loading && !cart) {
     return (
       <Page size="reading">
-        <p className="text-subtle">Loading cart…</p>
+        <PageLoader label="Loading cart…" />
       </Page>
     );
   }

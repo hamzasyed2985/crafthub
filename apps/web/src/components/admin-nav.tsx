@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { fetchAdminInbox } from '@/lib/api';
+import { SITE_SHELL_INNER_CLASS } from '@/lib/site-shell';
 
 const SECTIONS = [
   { href: '/admin', label: 'Dashboard', match: (p: string) => p === '/admin' },
@@ -19,6 +22,11 @@ const SECTIONS = [
     href: '/admin/vendors',
     label: 'Vendors',
     match: (p: string) => p.startsWith('/admin/vendors'),
+  },
+  {
+    href: '/admin/categories',
+    label: 'Categories',
+    match: (p: string) => p.startsWith('/admin/categories'),
   },
   {
     href: '/admin/settings',
@@ -47,15 +55,43 @@ export function AdminNav() {
   const section = currentSection(pathname);
   const detail = detailLabel(pathname);
   const onDashboard = pathname === '/admin';
+  const [inboxTotal, setInboxTotal] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    function load() {
+      fetchAdminInbox()
+        .then((inbox) => {
+          if (!cancelled) setInboxTotal(inbox.counts.total);
+        })
+        .catch(() => {
+          if (!cancelled) setInboxTotal(0);
+        });
+    }
+    load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [pathname]);
 
   return (
     <div className="border-b border-border bg-elevated/60">
       <nav
         aria-label="Admin breadcrumb"
-        className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-3 text-sm"
+        className={`flex flex-wrap items-center gap-2 py-3 text-sm ${SITE_SHELL_INNER_CLASS}`}
       >
         <Link href="/admin" className="font-semibold text-foreground hover:text-accent">
           Admin
+          {inboxTotal > 0 ? (
+            <span
+              className="ml-2 inline-flex min-w-5 items-center justify-center rounded-sm bg-accent px-1.5 py-0.5 text-xs font-semibold text-background"
+              aria-label={`${inboxTotal} items need attention`}
+            >
+              {inboxTotal > 99 ? '99+' : inboxTotal}
+            </span>
+          ) : null}
         </Link>
 
         {!onDashboard || detail ? (
@@ -100,6 +136,15 @@ export function AdminNav() {
             <span className="text-muted">Dashboard</span>
           </>
         )}
+
+        {inboxTotal > 0 && !onDashboard ? (
+          <Link
+            href="/admin"
+            className="ml-auto text-sm text-accent hover:underline"
+          >
+            {inboxTotal} need attention →
+          </Link>
+        ) : null}
       </nav>
     </div>
   );

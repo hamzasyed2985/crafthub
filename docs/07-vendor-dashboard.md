@@ -28,11 +28,11 @@ Give artisans a simple “run my shop” cockpit: onboarding, catalog, orders, e
 
 ## Onboarding checklist
 
-1. Submit apply (bio, city, craft categories, ID-ish attestation checkbox)  
+1. Submit apply (bio, city, **craft tags**, attestation checkbox)  
 2. Admin approves  
 3. Shop branding & policies (logo or banner + shipping + returns)  
 4. Complete Stripe Connect Express onboarding (`charges_enabled` **and** `details_submitted` / `onboarding_complete`)  
-5. Publish first active product  
+5. Publish first **active** product (must pick a **category**)  
 
 Pending vendors can edit shop + onboarding only; Orders / Products / Earnings require approval.
 
@@ -49,8 +49,12 @@ Block “Go live” / green Connected until Stripe `charges_enabled` **and** `on
 
 - Draft / active / archived  
 - Variants: price_cents, stock, SKU, attributes  
-- Multi-image upload via signed URL  
-- Category assignment  
+- Multi-image upload (URL for MVP; signed upload later)  
+- **Category assignment** — required to set status `active`  
+- If the craft is missing: use **Other**, or **Suggest a category** (admin reviews; approve adds it to the platform list)  
+- Optional listing copilot: AI may suggest an **existing** active category name only  
+
+Craft tags on the shop profile are separate from product categories — tags describe the maker; categories classify each listing.  
 
 ## Orders
 

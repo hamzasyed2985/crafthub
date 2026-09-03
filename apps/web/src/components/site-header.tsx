@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AccountMenu } from '@/components/account-menu';
 import { useCart } from '@/components/cart-provider';
 import { IconCart } from '@/components/icons';
+import { SITE_SHELL_INNER_CLASS } from '@/lib/site-shell';
 
 const iconBtn =
   'relative inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-background-subtle hover:text-foreground';
@@ -15,8 +16,8 @@ export function SiteHeader() {
   const count = cart?.itemCount ?? 0;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-elevated/90 px-6 py-3.5 backdrop-blur-sm">
-      <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-4">
+    <header className="sticky top-0 z-10 border-b border-border bg-elevated/90 backdrop-blur-sm">
+      <div className={`relative flex items-center justify-between gap-4 py-3.5 ${SITE_SHELL_INNER_CLASS}`}>
         <Link
           href="/"
           className="relative z-10 shrink-0 font-display text-[1.35rem] font-semibold tracking-[-0.02em]"

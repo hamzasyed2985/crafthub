@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Input } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { useAuth } from '@/components/auth-provider';
 import { CitySelect, CountrySelect } from '@/components/country-city-fields';
@@ -70,7 +71,7 @@ export default function VendorApplyPage() {
   if (authLoading) {
     return (
       <Page size="narrow">
-        <p className="text-subtle">Loading…</p>
+        <PageLoader />
       </Page>
     );
   }

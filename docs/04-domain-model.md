@@ -34,7 +34,7 @@ AuditLog → actor User
 
 | Table | Purpose |
 |-------|---------|
-| `vendor_profiles` | user_id, display_name, slug, bio, logo, banner, status (`pending` \| `approved` \| `suspended`) |
+| `vendor_profiles` | user_id, display_name, slug, bio, logo, banner, **craft_tags**, status (`pending` \| `approved` \| `suspended`) |
 | `shops` | vendor_id, policies, location/city, shipping defaults |
 | `stripe_accounts` | vendor_id, stripe_account_id, onboarding_complete, charges_enabled, payouts_enabled |
 
@@ -42,10 +42,22 @@ AuditLog → actor User
 
 | Table | Purpose |
 |-------|---------|
-| `categories` | name, slug, parent_id |
-| `products` | shop_id, title, slug, description, status, category_id |
+| `categories` | Platform craft taxonomy: `name`, `slug`, `parent_id` (unused for now), `status` (`active` \| `archived`), `featured` (home strip), `sort_order` |
+| `category_suggestions` | Vendor-proposed crafts awaiting admin review (`pending` \| `approved` \| `rejected`) |
+| `products` | shop_id, title, slug, description, status, **category_id** (required when status is `active`) |
 | `product_variants` | product_id, sku, price_cents, currency, stock_qty, attributes (JSON) |
 | `media` | product_id or shop_id, storage_key, alt, sort_order |
+
+**Categories vs craft tags**
+
+| Concept | Belongs to | Who owns it | Used for |
+|---------|------------|-------------|----------|
+| **Category** | Product | Platform (admin-curated) | Explore filter, home “Shop by craft”, product listing |
+| **Craft tags** | Vendor profile (`craft_tags` string[]) | Vendor (free text) | Shop profile + makers search only |
+
+Vendors **cannot** invent categories. They pick an existing active category per product, use **Other** when nothing fits, or **suggest** a craft for admin approval. One shop may sell many categories (pottery + glass, etc.).
+
+Seeded starters include Pottery, Jewelry, Woodwork, Textiles, Food crafts, Glass, Candles, Leather, Paper & print, Metalwork, and Other.
 
 ### Cart & orders
 

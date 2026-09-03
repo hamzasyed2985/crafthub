@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './api-base-url';
+import { MIN_LOADING_MS, withMinLoadingDelay } from './min-loading-delay';
 
 const API_URL = getApiBaseUrl();
 
@@ -226,6 +227,8 @@ async function api<T>(
   init?: RequestInit & { _retried?: boolean },
 ): Promise<T> {
   const { _retried, ...fetchInit } = init ?? {};
+  const method = (fetchInit.method ?? 'GET').toUpperCase();
+  const started = Date.now();
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
     ...fetchInit,
@@ -244,8 +247,16 @@ async function api<T>(
     }
     throw new Error(await parseError(res));
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+
+  const readBody = async (): Promise<T> => {
+    if (res.status === 204) return undefined as T;
+    return res.json() as Promise<T>;
+  };
+
+  if (method === 'GET') {
+    return withMinLoadingDelay(readBody(), MIN_LOADING_MS, started);
+  }
+  return readBody();
 }
 
 function rememberCartSession(body: { data?: { cartSessionId?: string | null } }) {
@@ -305,8 +316,142 @@ export async function resetPassword(input: { token: string; password: string }) 
 }
 
 export async function fetchCategories() {
-  const body = await api<{ data: Array<{ id: string; name: string; slug: string }> }>(
-    '/api/v1/categories',
+  const body = await api<{
+    data: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      featured?: boolean;
+      sortOrder?: number;
+    }>;
+  }>('/api/v1/categories');
+  return body.data;
+}
+
+export async function suggestCategory(input: { proposedName: string; note?: string }) {
+  const body = await api<{
+    data: {
+      id: string;
+      proposedName: string;
+      note: string;
+      status: string;
+      createdAt: string;
+    };
+  }>('/api/v1/vendor/category-suggestions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return body.data;
+}
+
+export async function fetchVendorCategorySuggestions() {
+  const body = await api<{
+    data: Array<{
+      id: string;
+      proposedName: string;
+      note: string;
+      status: string;
+      adminNote: string | null;
+      category: { id: string; name: string; slug: string } | null;
+      createdAt: string;
+      reviewedAt: string | null;
+    }>;
+  }>('/api/v1/vendor/category-suggestions');
+  return body.data;
+}
+
+export type AdminCategoryRow = {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  status: 'active' | 'archived';
+  featured: boolean;
+  sortOrder: number;
+  productCount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchAdminCategories(status?: string, page = 1, limit = 48) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  return api<{ data: AdminCategoryRow[]; meta: { total: number; page: number; limit: number } }>(
+    `/api/v1/admin/categories?${params}`,
+  );
+}
+
+export async function createAdminCategory(input: {
+  name: string;
+  slug?: string;
+  featured?: boolean;
+  sortOrder?: number;
+}) {
+  const body = await api<{ data: AdminCategoryRow }>('/api/v1/admin/categories', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return body.data;
+}
+
+export async function updateAdminCategory(
+  id: string,
+  input: {
+    name?: string;
+    slug?: string;
+    status?: 'active' | 'archived';
+    featured?: boolean;
+    sortOrder?: number;
+  },
+) {
+  const body = await api<{ data: AdminCategoryRow }>(`/api/v1/admin/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+  return body.data;
+}
+
+export type AdminCategorySuggestionRow = {
+  id: string;
+  proposedName: string;
+  note: string;
+  status: string;
+  adminNote: string | null;
+  vendor: { id: string; displayName: string; slug: string };
+  category: { id: string; name: string; slug: string } | null;
+  reviewedBy: { id: string; email: string; name: string | null } | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
+
+export async function fetchAdminCategorySuggestions(status = 'pending', page = 1, limit = 24) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    status,
+  });
+  return api<{
+    data: AdminCategorySuggestionRow[];
+    meta: { total: number; page: number; limit: number };
+  }>(`/api/v1/admin/category-suggestions?${params}`);
+}
+
+export async function reviewAdminCategorySuggestion(
+  id: string,
+  input: {
+    decision: 'approved' | 'rejected';
+    adminNote?: string | null;
+    name?: string;
+    slug?: string;
+    featured?: boolean;
+  },
+) {
+  const body = await api<{ data: AdminCategorySuggestionRow }>(
+    `/api/v1/admin/category-suggestions/${id}/review`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
   );
   return body.data;
 }
@@ -570,6 +715,32 @@ export async function fetchAdminMetrics() {
   return body.data;
 }
 
+export type AdminInboxKind = 'vendor_application' | 'category_suggestion' | 'ledger_review';
+
+export type AdminInboxItem = {
+  id: string;
+  kind: AdminInboxKind;
+  title: string;
+  subtitle: string | null;
+  href: string;
+  createdAt: string;
+};
+
+export type AdminInbox = {
+  counts: {
+    pendingVendors: number;
+    pendingCategorySuggestions: number;
+    ledgerReviews: number;
+    total: number;
+  };
+  items: AdminInboxItem[];
+};
+
+export async function fetchAdminInbox() {
+  const body = await api<{ data: AdminInbox }>('/api/v1/admin/inbox');
+  return body.data;
+}
+
 export async function fetchAdminSettings() {
   const body = await api<{
     data: {
@@ -705,6 +876,8 @@ export async function fetchAdminAuditLogs(action?: string, page = 1, limit = 24)
       entity: string;
       entityId: string;
       meta: unknown;
+      subject: string | null;
+      href: string | null;
       actor: { id: string; email: string; name: string | null } | null;
       createdAt: string;
     }>;

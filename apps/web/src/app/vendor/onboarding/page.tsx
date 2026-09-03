@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import {
   fetchVendorMe,
@@ -124,7 +125,7 @@ export default function VendorOnboardingPage() {
   if (!vendor) {
     return (
       <Page size="narrow">
-        <p className="text-subtle">Loading…</p>
+        <PageLoader />
       </Page>
     );
   }

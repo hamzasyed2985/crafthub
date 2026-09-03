@@ -165,7 +165,12 @@ vendorOrdersRouter.post('/:id/fulfill', async (req: VendorRequest, res, next) =>
           action: 'vendor_order.fulfill',
           entity: 'vendor_order',
           entityId: row.id,
-          meta: { from: 'paid', to: 'fulfilling' },
+          meta: {
+            from: 'paid',
+            to: 'fulfilling',
+            orderId: row.orderId,
+            vendorId: row.vendorId,
+          },
         },
       });
 
@@ -226,6 +231,8 @@ vendorOrdersRouter.post('/:id/ship', async (req: VendorRequest, res, next) => {
             to: 'shipped',
             trackingNumber: input.trackingNumber ?? null,
             carrier: input.carrier ?? null,
+            orderId: row.orderId,
+            vendorId: row.vendorId,
           },
         },
       });
@@ -296,7 +303,12 @@ vendorOrdersRouter.post('/:id/deliver', async (req: VendorRequest, res, next) =>
           action: 'vendor_order.deliver',
           entity: 'vendor_order',
           entityId: row.id,
-          meta: { from: 'shipped', to: 'delivered' },
+          meta: {
+            from: 'shipped',
+            to: 'delivered',
+            orderId: row.orderId,
+            vendorId: row.vendorId,
+          },
         },
       });
 

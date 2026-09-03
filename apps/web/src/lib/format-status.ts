@@ -1,5 +1,10 @@
 import type { OrderStatus, VendorOrderStatus } from '@crafthub/shared';
 
+/** Buyer-facing order reference (e.g. CH-A10080EE). */
+export function formatOrderNumber(id: string): string {
+  return `CH-${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
+
 /** Admin / vendor / generic API status (e.g. pending_payment → Pending Payment). */
 export function formatStatusLabel(status: string | null | undefined): string {
   if (!status) return 'All';

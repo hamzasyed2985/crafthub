@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { ListRowSkeleton } from '@/components/list-row-skeleton';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchAdminFinance, fetchAdminVendorLedger } from '@/lib/api';
@@ -87,7 +89,7 @@ export default function AdminFinancePage() {
 
   if (error) {
     return (
-      <Page size="default">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -95,15 +97,15 @@ export default function AdminFinancePage() {
 
   if (!data)
     return (
-      <Page size="default">
-        <p className="text-subtle">Loading finance…</p>
+      <Page size="wide">
+        <PageLoader label="Loading finance…" />
       </Page>
     );
 
   const ratePct = (data.settings.commissionBps / 100).toFixed(1);
 
   return (
-    <Page size="default">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Finance</h1>
       <p className="mt-1 text-muted">
         Platform commission ({ratePct}%) — where revenue came from
@@ -238,7 +240,7 @@ export default function AdminFinancePage() {
             </div>
             <div className="max-h-[calc(85vh-4.5rem)] overflow-y-auto px-5 py-4">
               {ledgerError ? <p className="text-danger">{ledgerError}</p> : null}
-              {!ledger && !ledgerError ? <p className="text-subtle">Loading…</p> : null}
+              {!ledger && !ledgerError ? <ListRowSkeleton rows={6} columns={1} /> : null}
               {ledger ? (
                 <>
                   <p className="text-sm text-muted">

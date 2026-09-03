@@ -122,3 +122,134 @@ export function IconChat({ className, title }: IconProps) {
     </svg>
   );
 }
+
+export function IconChevronLeft({ className, title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? base}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function IconChevronRight({ className, title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? base}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+export function IconChevronDoubleLeft({ className, title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? base}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      <path d="M13 6l-6 6 6 6M19 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function IconChevronDoubleRight({ className, title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? base}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      <path d="M5 6l6 6-6 6M11 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+type GridDensity = 3 | 4 | 5;
+
+export function IconGridDensity({
+  columns,
+  className,
+  title,
+}: IconProps & { columns: GridDensity }) {
+  const gap = 1.25;
+  const inset = 2;
+  const inner = 20 - inset * 2;
+  const barW = (inner - gap * (columns - 1)) / columns;
+
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className={className ?? 'h-4 w-4 shrink-0'}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      {Array.from({ length: columns }, (_, i) => (
+        <rect
+          key={i}
+          x={inset + i * (barW + gap)}
+          y={4}
+          width={barW}
+          height={12}
+          rx={0.75}
+          fill="currentColor"
+        />
+      ))}
+    </svg>
+  );
+}
+
+export function IconSearch({ className, title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? base}
+      aria-hidden={title ? undefined : true}
+      role={title ? 'img' : undefined}
+    >
+      {title ? <title>{title}</title> : null}
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}

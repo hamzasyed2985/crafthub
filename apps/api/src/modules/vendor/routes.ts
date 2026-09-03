@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@crafthub/db';
-import { updateShopSchema, vendorApplySchema } from '@crafthub/shared';
+import { suggestCategorySchema, updateShopSchema, vendorApplySchema } from '@crafthub/shared';
 import { AppError } from '../../lib/errors.js';
 import {
   createRefreshToken,
@@ -85,7 +85,11 @@ vendorRouter.post('/apply', async (req: AuthedRequest, res, next) => {
           action: 'vendor.apply',
           entity: 'vendor_profile',
           entityId: profile.id,
-          meta: { slug: profile.slug, city: profile.city },
+          meta: {
+            slug: profile.slug,
+            city: profile.city,
+            displayName: profile.displayName,
+          },
         },
       });
 
@@ -168,3 +172,101 @@ vendorRouter.patch('/shop', requireVendor(), async (req: VendorRequest, res, nex
     next(err);
   }
 });
+
+vendorRouter.post(
+  '/category-suggestions',
+  requireVendor({ requireApproved: true }),
+  async (req: VendorRequest, res, next) => {
+    try {
+      const input = suggestCategorySchema.parse(req.body);
+      const proposedName = input.proposedName.trim();
+
+      const existingCat = await prisma.category.findFirst({
+        where: {
+          status: 'active',
+          OR: [
+            { name: { equals: proposedName, mode: 'insensitive' } },
+            { slug: proposedName.toLowerCase().replace(/[^a-z0-9]+/g, '-') },
+          ],
+        },
+      });
+      if (existingCat) {
+        throw new AppError(
+          409,
+          'CATEGORY_EXISTS',
+          `“${existingCat.name}” already exists — pick it from the category list`,
+        );
+      }
+
+      const pendingDup = await prisma.categorySuggestion.findFirst({
+        where: {
+          vendorId: req.vendorId!,
+          status: 'pending',
+          proposedName: { equals: proposedName, mode: 'insensitive' },
+        },
+      });
+      if (pendingDup) {
+        throw new AppError(409, 'ALREADY_SUGGESTED', 'You already suggested this craft');
+      }
+
+      const row = await prisma.categorySuggestion.create({
+        data: {
+          vendorId: req.vendorId!,
+          proposedName,
+          note: input.note ?? '',
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actorId: req.user!.sub,
+          action: 'category_suggestion.create',
+          entity: 'category_suggestion',
+          entityId: row.id,
+          meta: { proposedName, note: input.note ?? '' },
+        },
+      });
+
+      res.status(201).json({
+        data: {
+          id: row.id,
+          proposedName: row.proposedName,
+          note: row.note,
+          status: row.status,
+          createdAt: row.createdAt.toISOString(),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+vendorRouter.get(
+  '/category-suggestions',
+  requireVendor({ requireApproved: true }),
+  async (req: VendorRequest, res, next) => {
+    try {
+      const rows = await prisma.categorySuggestion.findMany({
+        where: { vendorId: req.vendorId! },
+        include: { category: { select: { id: true, name: true, slug: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+      res.json({
+        data: rows.map((r) => ({
+          id: r.id,
+          proposedName: r.proposedName,
+          note: r.note,
+          status: r.status,
+          adminNote: r.adminNote,
+          category: r.category,
+          createdAt: r.createdAt.toISOString(),
+          reviewedAt: r.reviewedAt?.toISOString() ?? null,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);

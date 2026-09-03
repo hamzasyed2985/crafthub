@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@crafthub/ui';
+import { SITE_GUTTER_CLASS, SITE_MAX_WIDTH_CLASS } from '@/lib/site-shell';
 
 export type PageSize = 'narrow' | 'reading' | 'default' | 'wide';
 
@@ -7,7 +8,7 @@ const sizeClass: Record<PageSize, string> = {
   narrow: 'max-w-lg',
   reading: 'max-w-3xl',
   default: 'max-w-5xl',
-  wide: 'max-w-6xl',
+  wide: SITE_MAX_WIDTH_CLASS,
 };
 
 const yClass = {
@@ -38,7 +39,7 @@ export function Page({
   className?: string;
 }) {
   return (
-    <div className={cn('mx-auto w-full px-6', sizeClass[size], yClass[y], className)}>
+    <div className={cn('mx-auto w-full', SITE_GUTTER_CLASS, sizeClass[size], yClass[y], className)}>
       {children}
     </div>
   );

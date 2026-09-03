@@ -38,20 +38,30 @@ export const variantInputSchema = z.object({
   attributes: z.record(z.string()).default({}),
 });
 
-export const createProductSchema = z.object({
-  title: z.string().trim().min(2).max(140),
-  slug: z
-    .string()
-    .trim()
-    .min(2)
-    .max(120)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-    .optional(),
-  description: z.string().trim().max(10_000).default(''),
-  categoryId: z.string().uuid().optional().nullable(),
-  status: z.enum(PRODUCT_STATUSES).default('draft'),
-  variants: z.array(variantInputSchema).min(1).max(20),
-});
+export const createProductSchema = z
+  .object({
+    title: z.string().trim().min(2).max(140),
+    slug: z
+      .string()
+      .trim()
+      .min(2)
+      .max(120)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+    description: z.string().trim().max(10_000).default(''),
+    categoryId: z.string().uuid().optional().nullable(),
+    status: z.enum(PRODUCT_STATUSES).default('draft'),
+    variants: z.array(variantInputSchema).min(1).max(20),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === 'active' && !data.categoryId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Active products require a category',
+        path: ['categoryId'],
+      });
+    }
+  });
 
 export const updateProductSchema = z.object({
   title: z.string().trim().min(2).max(140).optional(),
@@ -67,6 +77,13 @@ export const updateProductSchema = z.object({
   status: z.enum(PRODUCT_STATUSES).optional(),
   variants: z.array(variantInputSchema.extend({ id: z.string().uuid().optional() })).min(1).max(20).optional(),
 });
+
+export const suggestCategorySchema = z.object({
+  proposedName: z.string().trim().min(2).max(80),
+  note: z.string().trim().max(500).optional().default(''),
+});
+
+export type SuggestCategoryInput = z.infer<typeof suggestCategorySchema>;
 
 export const addMediaSchema = z.object({
   url: z.string().url(),

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { LoadingMessage } from '@/components/loading-message';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import {
@@ -40,7 +42,7 @@ export default function VendorEarningsPage() {
 
   if (error && !earnings) {
     return (
-      <Page size="reading">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -48,8 +50,8 @@ export default function VendorEarningsPage() {
 
   if (!earnings)
     return (
-      <Page size="reading">
-        <p className="text-subtle">Loading earnings…</p>
+      <Page size="wide">
+        <PageLoader label="Loading earnings…" />
       </Page>
     );
 
@@ -66,7 +68,7 @@ export default function VendorEarningsPage() {
   ];
 
   return (
-    <Page size="reading">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Earnings</h1>
       <p className="mt-2 text-muted">Totals from paid and later order slices (not live Stripe balance).</p>
 
@@ -83,7 +85,7 @@ export default function VendorEarningsPage() {
 
       <h2 className="mt-12 font-display text-2xl">Transfer history</h2>
       {!transfers ? (
-        <p className="mt-4 text-subtle">Loading transfers…</p>
+        <div className="mt-4"><LoadingMessage label="Loading transfers…" /></div>
       ) : transfers.length === 0 ? (
         <p className="mt-4 text-subtle">No transfers yet.</p>
       ) : (

@@ -12,7 +12,7 @@ import {
   simulateCheckoutPaid,
   type OrderDto,
 } from '@/lib/api';
-import { formatBuyerOrderStatus, formatBuyerVendorSliceStatus, formatStatusLabel } from '@/lib/format-status';
+import { formatBuyerOrderStatus, formatBuyerVendorSliceStatus, formatOrderNumber, formatStatusLabel } from '@/lib/format-status';
 
 export default function CheckoutSuccessPage() {
   const params = useSearchParams();
@@ -129,7 +129,7 @@ export default function CheckoutSuccessPage() {
       <p className="mt-3 text-muted">{message}</p>
       {order ? (
         <div className="mt-8 space-y-3 rounded-md border border-border bg-elevated p-4">
-          <p className="text-sm text-subtle">Order {order.id.slice(0, 8)}…</p>
+          <p className="text-sm text-subtle">{formatOrderNumber(order.id)}</p>
           <p>
             Status: <strong>{formatBuyerOrderStatus(order.status)}</strong>
           </p>

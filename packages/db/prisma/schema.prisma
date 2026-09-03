@@ -69,6 +69,17 @@ enum VendorLedgerKind {
   debt_offset
 }
 
+enum CategoryStatus {
+  active
+  archived
+}
+
+enum CategorySuggestionStatus {
+  pending
+  approved
+  rejected
+}
+
 model User {
   id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
@@ -88,6 +99,7 @@ model User {
   orders              Order[]
   reviews             Review[]
   aiGenerations       AiGeneration[]
+  categorySuggestionsReviewed CategorySuggestion[] @relation("CategorySuggestionReviewer")
 
   @@map("users")
 }
@@ -150,6 +162,7 @@ model VendorProfile {
   stripeAccount StripeAccount?
   vendorOrders  VendorOrder[]
   ledgerEntries VendorLedgerEntry[]
+  categorySuggestions CategorySuggestion[]
 
   @@index([status])
   @@map("vendor_profiles")
@@ -188,17 +201,45 @@ model StripeAccount {
 }
 
 model Category {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String         @id @default(uuid()) @db.Uuid
   name      String
-  slug      String   @unique
-  parentId  String?  @map("parent_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
+  slug      String         @unique
+  parentId  String?        @map("parent_id") @db.Uuid
+  status    CategoryStatus @default(active)
+  featured  Boolean        @default(false)
+  sortOrder Int            @default(0) @map("sort_order")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryTree")
-  products Product[]
+  parent      Category?             @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]            @relation("CategoryTree")
+  products    Product[]
+  suggestions CategorySuggestion[]
 
+  @@index([status, featured, sortOrder])
   @@map("categories")
+}
+
+model CategorySuggestion {
+  id           String                    @id @default(uuid()) @db.Uuid
+  vendorId     String                    @map("vendor_id") @db.Uuid
+  proposedName String                    @map("proposed_name")
+  note         String                    @default("")
+  status       CategorySuggestionStatus  @default(pending)
+  adminNote    String?                   @map("admin_note")
+  categoryId   String?                   @map("category_id") @db.Uuid
+  reviewedById String?                   @map("reviewed_by_id") @db.Uuid
+  reviewedAt   DateTime?                 @map("reviewed_at")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+
+  vendor     VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  reviewedBy User?         @relation("CategorySuggestionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([vendorId])
+  @@map("category_suggestions")
 }
 
 model Product {

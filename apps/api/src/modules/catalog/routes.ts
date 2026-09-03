@@ -9,11 +9,24 @@ export const catalogRouter = Router();
 
 type CatalogProductRow = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
-catalogRouter.get('/categories', async (_req, res, next) => {
+catalogRouter.get('/categories', async (req, res, next) => {
   try {
+    const featuredOnly =
+      req.query.featured === '1' || req.query.featured === 'true';
     const categories = await prisma.category.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, slug: true, parentId: true },
+      where: {
+        status: 'active',
+        ...(featuredOnly ? { featured: true } : {}),
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        parentId: true,
+        featured: true,
+        sortOrder: true,
+      },
     });
     res.json({ data: categories });
   } catch (err) {

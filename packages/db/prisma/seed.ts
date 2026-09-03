@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
+import { EXTRA_MAKERS } from './extra-makers.js';
 
 const prisma = new PrismaClient();
 
@@ -13,11 +14,17 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 const CATEGORIES = [
-  { name: 'Pottery', slug: 'pottery' },
-  { name: 'Jewelry', slug: 'jewelry' },
-  { name: 'Woodwork', slug: 'woodwork' },
-  { name: 'Textiles', slug: 'textiles' },
-  { name: 'Food crafts', slug: 'food-crafts' },
+  { name: 'Pottery', slug: 'pottery', featured: true, sortOrder: 10 },
+  { name: 'Jewelry', slug: 'jewelry', featured: true, sortOrder: 20 },
+  { name: 'Woodwork', slug: 'woodwork', featured: true, sortOrder: 30 },
+  { name: 'Textiles', slug: 'textiles', featured: true, sortOrder: 40 },
+  { name: 'Food crafts', slug: 'food-crafts', featured: true, sortOrder: 50 },
+  { name: 'Glass', slug: 'glass', featured: true, sortOrder: 60 },
+  { name: 'Candles', slug: 'candles', featured: false, sortOrder: 70 },
+  { name: 'Leather', slug: 'leather', featured: false, sortOrder: 80 },
+  { name: 'Paper & print', slug: 'paper-print', featured: false, sortOrder: 90 },
+  { name: 'Metalwork', slug: 'metalwork', featured: false, sortOrder: 100 },
+  { name: 'Other', slug: 'other', featured: false, sortOrder: 1000 },
 ];
 
 const IMG = {
@@ -476,8 +483,19 @@ async function main() {
   for (const cat of CATEGORIES) {
     await prisma.category.upsert({
       where: { slug: cat.slug },
-      update: { name: cat.name },
-      create: cat,
+      update: {
+        name: cat.name,
+        featured: cat.featured,
+        sortOrder: cat.sortOrder,
+        status: 'active',
+      },
+      create: {
+        name: cat.name,
+        slug: cat.slug,
+        featured: cat.featured,
+        sortOrder: cat.sortOrder,
+        status: 'active',
+      },
     });
   }
 
@@ -1579,6 +1597,44 @@ async function main() {
 
   for (const p of extraActive) {
     await upsertProduct({ ...p, status: 'active' });
+  }
+
+  for (const maker of EXTRA_MAKERS) {
+    const vendor = await upsertVendor({
+      email: maker.email,
+      name: maker.name,
+      displayName: maker.displayName,
+      slug: maker.slug,
+      bio: maker.bio,
+      city: maker.city,
+      craftTags: maker.craftTags,
+      status: 'approved',
+      bannerUrl: maker.bannerUrl,
+      logoUrl: maker.logoUrl,
+      shipsFromCity: maker.shipsFromCity,
+      flatShippingCents: maker.flatShippingCents,
+      shippingPolicy: 'Ships within 3–7 business days via local courier.',
+      returnsPolicy: 'Contact within 7 days for damaged items.',
+      stripeReady: true,
+    });
+    if (!vendor.shop) {
+      throw new Error(`Shop missing for extra maker ${maker.slug}`);
+    }
+    const categoryId = cats[maker.categorySlug].id;
+    for (const product of maker.products) {
+      await upsertProduct({
+        shopId: vendor.shop.id,
+        categoryId,
+        title: product.title,
+        slug: product.slug,
+        description: product.description,
+        status: 'active',
+        sku: product.sku,
+        priceCents: product.priceCents,
+        stockQty: product.stockQty,
+        media: product.media,
+      });
+    }
   }
 
   const commissionBps = 1000;

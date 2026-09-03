@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { AccountAvatarSkeleton } from '@/components/account-menu-skeleton';
 import { useCart } from '@/components/cart-provider';
 import { IconMoon, IconSun, IconUser } from '@/components/icons';
 
@@ -72,27 +73,29 @@ export function AccountMenu() {
 
   return (
     <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        className={`${iconBtn}${open ? ' bg-accent-muted' : ''}`}
-        aria-label="Account menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <IconUser />
-      </button>
+      {authLoading ? (
+        <AccountAvatarSkeleton />
+      ) : (
+        <button
+          type="button"
+          className={`${iconBtn}${open ? ' bg-accent-muted' : ''}`}
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={menuId}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <IconUser />
+        </button>
+      )}
 
-      {open ? (
+      {open && !authLoading ? (
         <div
           id={menuId}
           role="menu"
           className="absolute right-0 z-50 mt-2 w-[17.5rem] overflow-hidden rounded-lg border border-border bg-elevated shadow-[0_12px_32px_rgba(28,25,23,0.14)]"
         >
-          {authLoading ? (
-            <p className="px-3.5 py-4 text-sm text-subtle">Loading…</p>
-          ) : user ? (
+          {user ? (
             <>
               <div className="border-b border-border bg-accent-muted/50 px-3.5 py-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-accent">Signed in</p>

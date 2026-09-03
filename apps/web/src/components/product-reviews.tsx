@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@crafthub/ui';
+import { ListRowSkeleton } from '@/components/list-row-skeleton';
 import { useAuth } from '@/components/auth-provider';
 import { PaginationControls } from '@/components/pagination-controls';
 import {
@@ -25,6 +26,7 @@ export function ProductReviews({ productId }: { productId: string }) {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const showReviewForm = canReview && !authLoading && Boolean(user);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function ProductReviews({ productId }: { productId: string }) {
   }, [productId]);
 
   useEffect(() => {
+    setLoading(true);
     fetchProductReviews(productId, reviewPage, 24)
       .then((res) => {
         setReviews(res.reviews);
@@ -41,7 +44,8 @@ export function ProductReviews({ productId }: { productId: string }) {
         setReviewCount(res.meta.reviewCount);
         setError(null);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load reviews'));
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load reviews'))
+      .finally(() => setLoading(false));
   }, [productId, reviewPage]);
 
   useEffect(() => {
@@ -88,19 +92,25 @@ export function ProductReviews({ productId }: { productId: string }) {
       </p>
       {error ? <p className="mt-2 text-danger">{error}</p> : null}
 
-      <ul className="mt-6 space-y-4">
-        {reviews.map((r) => (
-          <li key={r.id} className="border-b border-border pb-4">
-            <p className="font-semibold">
-              {r.rating}/5 · {r.user.name}
-              {r.verifiedPurchase ? (
-                <span className="ml-2 text-xs font-normal text-subtle">Verified purchase</span>
-              ) : null}
-            </p>
-            {r.body ? <p className="mt-1 text-sm text-muted">{r.body}</p> : null}
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        <div className="mt-6">
+          <ListRowSkeleton rows={4} columns={1} />
+        </div>
+      ) : (
+        <ul className="mt-6 space-y-4">
+          {reviews.map((r) => (
+            <li key={r.id} className="border-b border-border pb-4">
+              <p className="font-semibold">
+                {r.rating}/5 · {r.user.name}
+                {r.verifiedPurchase ? (
+                  <span className="ml-2 text-xs font-normal text-subtle">Verified purchase</span>
+                ) : null}
+              </p>
+              {r.body ? <p className="mt-1 text-sm text-muted">{r.body}</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <PaginationControls
         page={reviewPage}

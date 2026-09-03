@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import CheckoutSuccessPage from './success-client';
 
@@ -7,7 +8,7 @@ export default function CheckoutSuccessRoute() {
     <Suspense
       fallback={
         <Page size="narrow">
-          <p className="text-subtle">Loading…</p>
+          <PageLoader label="Loading order confirmation…" />
         </Page>
       }
     >

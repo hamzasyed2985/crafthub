@@ -101,7 +101,7 @@ Seed accounts:
 - Pending vendor: `pending@crafthub.local` / `Vendor123!`
 - Suspended vendor: `suspended@crafthub.local` / `Vendor123!`
 
-Admin finance: `/admin/finance` (commission by vendor + sources). Seed includes orders across pending / paid / shipped / delivered / cancelled / refunded.
+Admin finance: `/admin/finance` (commission by vendor + sources). Admin categories: `/admin/categories` (taxonomy + vendor craft suggestions). Seed includes orders across pending / paid / shipped / delivered / cancelled / refunded, plus expanded product categories (Glass, Candles, Leather, Paper & print, Metalwork, Other, …).
 
 ## Phase 3 — Checkout & Stripe Connect
 

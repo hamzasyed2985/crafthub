@@ -26,9 +26,15 @@ Make CraftHub feel like a curated local market: discovery first, trust second, c
 
 ### Discovery
 
-- Homepage: brand-forward hero (full-bleed craft imagery), one CTA (“Explore makers”)
-- Explore: filters — category, price, city/region, “ships from”, sort
-- Shop page: banner, bio, policies, product grid, reviews summary
+- Homepage: brand-forward hero; curated **featured** crafts (not the full taxonomy) + “Browse all crafts”
+- Explore: search, craft dropdown (active categories), sort, price range, grid density; active filter chips
+- Makers (`/shops`): directory by name/city/**craft tags** (not product categories)
+- Shop page: banner, bio, craft tags, policies, product grid, reviews summary
+
+### Categories on the storefront
+
+- Explore and home browse by **product category** (platform list).
+- Craft tags on a maker profile are free-text identity keywords — they do **not** drive Explore filters.
 
 ### Product detail (PDP)
 

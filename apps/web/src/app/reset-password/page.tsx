@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button, Input } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { resetPassword } from '@/lib/api';
 
@@ -91,7 +92,7 @@ export default function ResetPasswordPage() {
     <Suspense
       fallback={
         <Page size="narrow" y="none" className="mt-12">
-          <p className="text-subtle">Loading…</p>
+          <PageLoader />
         </Page>
       }
     >

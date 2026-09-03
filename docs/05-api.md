@@ -29,9 +29,9 @@ Rate limits: in-memory on register/login/refresh/forgot/reset (see [11 — Secur
 | GET | `/shops` | list approved shops |
 | GET | `/shops/:slug` | shop profile + paginated products |
 | GET | `/shops/:slug/products/:productSlug` | PDP by shop + product slug |
-| GET | `/products` | marketplace feed — `q`, `category`, `shop`, `minPrice`, `maxPrice`, `sort` |
+| GET | `/products` | marketplace feed — `q`, `category` (slug), `shop`, `minPrice`, `maxPrice`, `sort`, `page`, `limit` |
 | GET | `/products/:id` | PDP by id |
-| GET | `/categories` | flat list |
+| GET | `/categories` | **active** categories only; `?featured=1` for home curated strip; ordered by `sort_order`, then name |
 | GET | `/search` | catalog search — `page`/`limit` for products, `shopPage`/`shopLimit` for makers |
 | GET | `/products/:productId/reviews` | paginated |
 | GET | `/products/:productId/reviews/eligibility` | optional auth; `{ eligible, reason }` |
@@ -79,9 +79,11 @@ Prefix: `/vendor` — requires `vendor` role + approved profile where noted.
 | POST | `/vendor/stripe/refresh` | Sync flags after Stripe return |
 | POST | `/vendor/stripe/manage` | `{ action: "update" \| "dashboard" }` — update payout details or Express dashboard |
 | GET | `/vendor/stripe/status` | Connect flags |
-| GET/POST | `/vendor/products` | list / create — list accepts `?status=draft\|active\|archived` |
-| GET/PATCH/DELETE | `/vendor/products/:id` | CRUD |
+| GET/POST | `/vendor/products` | list / create — list accepts `?status=draft\|active\|archived`; **active requires `categoryId`** |
+| GET/PATCH/DELETE | `/vendor/products/:id` | CRUD — publishing/activating without a category is rejected |
 | POST/DELETE | `/vendor/products/:id/media` | add / remove media |
+| POST | `/vendor/category-suggestions` | approved vendors; `{ proposedName, note? }` — request a new craft |
+| GET | `/vendor/category-suggestions` | vendor’s recent suggestions + review status |
 | GET | `/vendor/orders` | vendor order slices — filter `paid\|fulfilling\|shipped\|delivered` |
 | GET | `/vendor/orders/:id` | |
 | POST | `/vendor/orders/:id/fulfill` | optional step |
@@ -97,6 +99,7 @@ Prefix: `/admin` — `admin` role only. Finance routes share `/admin` prefix.
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/admin/metrics` | GMV, orders, vendors, commission |
+| GET | `/admin/inbox` | Needs-attention queue: pending seller apps, craft suggestions, ledger reviews |
 | GET | `/admin/finance` | commission summary — `vendorPage`/`vendorLimit`, `recentPage`/`recentLimit` |
 | GET | `/admin/vendors` | list / search |
 | GET/PATCH | `/admin/vendors/:id` | approve / suspend |
@@ -108,6 +111,11 @@ Prefix: `/admin` — `admin` role only. Finance routes share `/admin` prefix.
 | GET/PATCH | `/admin/settings` | commission_bps, debt threshold |
 | GET | `/admin/audit-logs` | paginated — `?action=` filter |
 | POST | `/admin/products/:id/unpublish` | moderation |
+| GET | `/admin/categories` | list (optional `?status=active\|archived`) |
+| POST | `/admin/categories` | create `{ name, slug?, featured?, sortOrder? }` |
+| PATCH | `/admin/categories/:id` | rename, feature, archive/restore |
+| GET | `/admin/category-suggestions` | default `status=pending` |
+| POST | `/admin/category-suggestions/:id/review` | `{ decision: "approved"\|"rejected", name?, slug?, featured?, adminNote? }` — approve creates category |
 
 ## AI
 

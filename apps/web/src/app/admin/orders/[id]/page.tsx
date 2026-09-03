@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { fetchAdminOrder, refundAdminOrder, retryAdminVendorTransfer } from '@/lib/api';
 import { formatStatusLabel } from '@/lib/format-status';
@@ -78,7 +79,7 @@ export default function AdminOrderDetailPage() {
 
   if (error) {
     return (
-      <Page size="reading">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -86,8 +87,8 @@ export default function AdminOrderDetailPage() {
 
   if (!order)
     return (
-      <Page size="reading">
-        <p className="text-subtle">Loading…</p>
+      <Page size="wide">
+        <PageLoader />
       </Page>
     );
 
@@ -95,7 +96,7 @@ export default function AdminOrderDetailPage() {
     order.status === 'paid' || order.status === 'processing' || order.status === 'completed';
 
   return (
-    <Page size="reading">
+    <Page size="wide">
       <Link href="/admin/orders" className="text-sm text-accent">
         ← Orders
       </Link>

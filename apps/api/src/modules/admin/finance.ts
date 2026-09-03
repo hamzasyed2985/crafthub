@@ -371,16 +371,169 @@ adminFinanceRouter.get('/audit-logs', async (req, res, next) => {
       }),
     ]);
 
+    const vendorIds = new Set<string>();
+    const productIds = new Set<string>();
+    const orderIds = new Set<string>();
+    const vendorOrderIds = new Set<string>();
+
+    for (const r of rows) {
+      const meta = (r.meta ?? {}) as Record<string, unknown>;
+      switch (r.entity) {
+        case 'vendor_profile':
+          vendorIds.add(r.entityId);
+          break;
+        case 'product':
+          productIds.add(r.entityId);
+          break;
+        case 'order':
+          orderIds.add(r.entityId);
+          break;
+        case 'vendor_order':
+          vendorOrderIds.add(r.entityId);
+          if (typeof meta.orderId === 'string') orderIds.add(meta.orderId);
+          if (typeof meta.vendorId === 'string') vendorIds.add(meta.vendorId);
+          break;
+        default:
+          break;
+      }
+    }
+
+    const [vendors, products, orders, vendorOrders] = await Promise.all([
+      vendorIds.size
+        ? prisma.vendorProfile.findMany({
+            where: { id: { in: [...vendorIds] } },
+            select: { id: true, displayName: true, slug: true },
+          })
+        : Promise.resolve([]),
+      productIds.size
+        ? prisma.product.findMany({
+            where: { id: { in: [...productIds] } },
+            select: { id: true, title: true, slug: true },
+          })
+        : Promise.resolve([]),
+      orderIds.size
+        ? prisma.order.findMany({
+            where: { id: { in: [...orderIds] } },
+            select: {
+              id: true,
+              totalCents: true,
+              buyer: { select: { email: true, name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      vendorOrderIds.size
+        ? prisma.vendorOrder.findMany({
+            where: { id: { in: [...vendorOrderIds] } },
+            select: {
+              id: true,
+              orderId: true,
+              vendor: { select: { id: true, displayName: true, slug: true } },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const vendorById = new Map(vendors.map((v) => [v.id, v]));
+    const productById = new Map(products.map((p) => [p.id, p]));
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+    const vendorOrderById = new Map(vendorOrders.map((vo) => [vo.id, vo]));
+
     res.json({
-      data: rows.map((r: Elem<typeof rows>) => ({
-        id: r.id,
-        action: r.action,
-        entity: r.entity,
-        entityId: r.entityId,
-        meta: r.meta,
-        actor: r.actor,
-        createdAt: r.createdAt.toISOString(),
-      })),
+      data: rows.map((r: Elem<typeof rows>) => {
+        const meta = (r.meta ?? {}) as Record<string, unknown>;
+        let subject: string | null = null;
+        let href: string | null = null;
+
+        switch (r.entity) {
+          case 'vendor_profile': {
+            const v = vendorById.get(r.entityId);
+            const name =
+              (typeof meta.displayName === 'string' && meta.displayName) ||
+              v?.displayName ||
+              null;
+            const slug = (typeof meta.slug === 'string' && meta.slug) || v?.slug || null;
+            subject = name ?? (slug ? `Shop ${slug}` : `Vendor ${r.entityId.slice(0, 8)}`);
+            href = `/admin/vendors`;
+            break;
+          }
+          case 'product': {
+            const p = productById.get(r.entityId);
+            subject =
+              (typeof meta.title === 'string' && meta.title) ||
+              p?.title ||
+              `Product ${r.entityId.slice(0, 8)}`;
+            break;
+          }
+          case 'order': {
+            const o = orderById.get(r.entityId);
+            const buyer = o?.buyer?.email ?? o?.buyer?.name;
+            subject = buyer
+              ? `Order for ${buyer}`
+              : `Order ${r.entityId.slice(0, 8)}`;
+            href = `/admin/orders/${r.entityId}`;
+            break;
+          }
+          case 'vendor_order': {
+            const vo = vendorOrderById.get(r.entityId);
+            const vendorId =
+              (typeof meta.vendorId === 'string' && meta.vendorId) || vo?.vendor.id;
+            const orderId =
+              (typeof meta.orderId === 'string' && meta.orderId) || vo?.orderId;
+            const vendorName =
+              vo?.vendor.displayName ||
+              (vendorId ? vendorById.get(vendorId)?.displayName : null);
+            const order = orderId ? orderById.get(orderId) : null;
+            const buyer = order?.buyer?.email;
+            const parts = [
+              vendorName ? `${vendorName} shipment` : 'Vendor shipment',
+              buyer ? `for ${buyer}` : orderId ? `order ${orderId.slice(0, 8)}` : null,
+            ].filter(Boolean);
+            subject = parts.join(' ');
+            href = orderId ? `/admin/orders/${orderId}` : null;
+            break;
+          }
+          case 'platform_settings':
+            subject = 'Platform settings';
+            href = '/admin/finance';
+            break;
+          case 'category': {
+            const name =
+              (typeof meta.name === 'string' && meta.name) ||
+              (typeof meta.to === 'object' &&
+              meta.to &&
+              typeof (meta.to as { name?: string }).name === 'string'
+                ? (meta.to as { name: string }).name
+                : null);
+            subject = name ? `Category “${name}”` : `Category ${r.entityId.slice(0, 8)}`;
+            href = '/admin/categories';
+            break;
+          }
+          case 'category_suggestion': {
+            const proposed =
+              typeof meta.proposedName === 'string' ? meta.proposedName : null;
+            subject = proposed
+              ? `Craft suggestion “${proposed}”`
+              : `Suggestion ${r.entityId.slice(0, 8)}`;
+            href = '/admin/categories';
+            break;
+          }
+          default:
+            subject = `${r.entity} ${r.entityId.slice(0, 8)}`;
+            break;
+        }
+
+        return {
+          id: r.id,
+          action: r.action,
+          entity: r.entity,
+          entityId: r.entityId,
+          meta: r.meta,
+          subject,
+          href,
+          actor: r.actor,
+          createdAt: r.createdAt.toISOString(),
+        };
+      }),
       meta: { total, page, limit },
     });
   } catch (err) {

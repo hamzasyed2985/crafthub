@@ -27,17 +27,30 @@ CraftHub has **three** control surfaces — don’t confuse them:
 
 ```
 /admin
-  ├── Overview (metrics)
+  ├── Overview (metrics + Needs attention inbox)
   ├── Vendors
   │     └── [id] detail / approve / suspend
-  ├── Products (moderation)
+  ├── Categories
+  │     ├── taxonomy CRUD + feature for home
+  │     └── pending craft suggestions
   ├── Orders
   │     └── [id] refund / vendor slices
-  ├── Users (buyers)
-  ├── Settings (commission, flags)
-  ├── Audit log
-  └── AI review (optional)     ← see 15-ai-features.md
+  ├── Finance
+  ├── Settings (commission, debt threshold)
+  └── Audit log
 ```
+
+### Needs attention (inbox)
+
+Admins should not have to open every tab to find work. The dashboard **Needs attention** panel (and a badge on Admin nav) aggregates open queues:
+
+| Queue | Source | Deep link |
+|-------|--------|-----------|
+| Seller applications | `VendorProfile.status = pending` | `/admin/vendors?status=pending` |
+| Craft suggestions | `CategorySuggestion.status = pending` | `/admin/categories` |
+| Ledger reviews | `ledgerReviewRequired` | `/admin/vendors?status=approved` |
+
+API: `GET /admin/inbox` — counts + recent items. This is an **attention queue**, not push notifications or per-admin read/unread (that can come later).
 
 ---
 
@@ -45,17 +58,14 @@ CraftHub has **three** control surfaces — don’t confuse them:
 
 | Route | Purpose |
 |-------|---------|
-| `/admin` | Metrics overview |
+| `/admin` | Metrics overview + Needs attention inbox |
 | `/admin/vendors` | List / filter by status (`pending`, `approved`, `suspended`) |
-| `/admin/vendors/[id]` | Profile, Stripe flags, approve / suspend / reinstate |
-| `/admin/products` | Search listings; force unpublish |
-| `/admin/products/[id]` | Inspect media, vendor, AI risk (if enabled) |
+| `/admin/categories` | Craft taxonomy: create, feature, archive; review vendor suggestions |
 | `/admin/orders` | All platform orders |
 | `/admin/orders/[id]` | Multi-vendor breakdown; refund |
-| `/admin/users` | Lookup buyer; ban / unban |
-| `/admin/settings` | Commission bps, maintenance mode |
+| `/admin/finance` | Commission, payouts, debt |
+| `/admin/settings` | Commission bps, debt threshold |
 | `/admin/audit-logs` | Who did what |
-| `/admin/ai/queue` | Optional moderation suggestions |
 
 ---
 
@@ -83,7 +93,25 @@ Charts: 2–3 max (e.g. GMV by day, new vendors by week). Use design-system sema
 
 Always write `audit_logs` with actor, action, entity id, reason.
 
-**Detail page should show:** bio, city, craft categories, Stripe `charges_enabled` / `payouts_enabled`, recent products, recent vendor_orders.
+**Detail page should show:** bio, city, craft tags, Stripe `charges_enabled` / `payouts_enabled`, recent products, recent vendor_orders.
+
+---
+
+## Categories (craft taxonomy)
+
+Platform-owned list used by Explore and product listings.
+
+| Action | Effect |
+|--------|--------|
+| Create | New active category (`name`, `slug`, optional `featured` / `sortOrder`) |
+| Feature | Appears on home “Shop by craft” curated strip |
+| Archive | Hidden from public `GET /categories` and vendor pickers; existing products keep the FK |
+| Approve suggestion | Creates category from vendor proposal; suggestion marked `approved` |
+| Reject suggestion | Suggestion marked `rejected` (optional admin note) |
+
+Vendors never create categories directly — they suggest; admin decides.
+
+Always write `audit_logs` for create/update/suggestion review.
 
 ---
 
@@ -124,7 +152,7 @@ Always write `audit_logs` with actor, action, entity id, reason.
 
 ## Audit log
 
-Record at least: vendor approve/suspend, refunds, commission changes, forced unpublish, user bans, AI-assisted actions taken.
+Record at least: vendor approve/suspend, refunds, commission changes, forced unpublish, **category create/update**, **category suggestion approve/reject**, user bans, AI-assisted actions taken.
 
 UI: filter by actor, action type, date.
 
@@ -135,6 +163,7 @@ UI: filter by actor, action type, date.
 | Capability | Admin | Vendor | Buyer |
 |------------|-------|--------|-------|
 | Approve vendors | ✓ | | |
+| Manage categories / review suggestions | ✓ | suggest only | |
 | Set commission | ✓ | | |
 | Refund any order | ✓ | | |
 | See all shops’ orders | ✓ | own only | own buy only |
@@ -157,4 +186,4 @@ UI: filter by actor, action type, date.
 - TanStack Table for vendors/orders  
 - Recharts for overview  
 - Seed an `admin@crafthub.local` only on staging/dev  
-- Demo script: approve vendor → watch shop go live → refund an order → show audit trail  
+- Demo script: approve vendor → watch shop go live → refund an order → show audit trail → manage categories / approve a craft suggestion  

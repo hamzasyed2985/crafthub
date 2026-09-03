@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
+import { AdminInboxPanel } from '@/components/admin-inbox-panel';
 import { SimplePieChart } from '@/components/simple-pie-chart';
 import { fetchAdminFinance, fetchAdminMetrics } from '@/lib/api';
 import { formatStatusLabel } from '@/lib/format-status';
@@ -24,6 +26,11 @@ const SECTIONS = [
     href: '/admin/vendors',
     title: 'Vendors',
     blurb: 'Approve, suspend, and review makers',
+  },
+  {
+    href: '/admin/categories',
+    title: 'Categories',
+    blurb: 'Craft taxonomy and vendor suggestions',
   },
   {
     href: '/admin/settings',
@@ -60,7 +67,7 @@ export default function AdminHomePage() {
 
   if (error) {
     return (
-      <Page size="default">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -68,8 +75,8 @@ export default function AdminHomePage() {
 
   if (!metrics)
     return (
-      <Page size="default">
-        <p className="text-subtle">Loading metrics…</p>
+      <Page size="wide">
+        <PageLoader label="Loading metrics…" />
       </Page>
     );
 
@@ -124,11 +131,13 @@ export default function AdminHomePage() {
   const ratePct = finance ? (finance.settings.commissionBps / 100).toFixed(1) : null;
 
   return (
-    <Page size="default">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Dashboard</h1>
       <p className="mt-1 text-muted">Marketplace health at a glance</p>
 
-      <section className="mt-8">
+      <AdminInboxPanel className="mt-8" />
+
+      <section className="mt-10">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">Sections</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {SECTIONS.map((s) => (

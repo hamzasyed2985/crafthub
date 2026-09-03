@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchVendorOrders, type VendorOrderDto } from '@/lib/api';
@@ -44,7 +45,7 @@ export default function VendorOrdersClient() {
 
   if (error) {
     return (
-      <Page size="reading">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
@@ -52,13 +53,13 @@ export default function VendorOrdersClient() {
 
   if (!orders)
     return (
-      <Page size="reading">
-        <p className="text-subtle">Loading orders…</p>
+      <Page size="wide">
+        <PageLoader label="Loading orders…" />
       </Page>
     );
 
   return (
-    <Page size="reading">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Orders</h1>
       <p className="mt-2 text-muted">Paid orders appear after Stripe webhook confirmation.</p>
 

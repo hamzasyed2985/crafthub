@@ -10,6 +10,12 @@ export type VendorStatus = (typeof VENDOR_STATUSES)[number];
 export const PRODUCT_STATUSES = ['draft', 'active', 'archived'] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
+export const CATEGORY_STATUSES = ['active', 'archived'] as const;
+export type CategoryStatus = (typeof CATEGORY_STATUSES)[number];
+
+export const CATEGORY_SUGGESTION_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type CategorySuggestionStatus = (typeof CATEGORY_SUGGESTION_STATUSES)[number];
+
 export const ORDER_STATUSES = [
   'pending_payment',
   'paid',

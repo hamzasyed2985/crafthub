@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button, Input } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { CitySelect, CountrySelect } from '@/components/country-city-fields';
 import { fetchVendorMe, updateVendorShop } from '@/lib/api';
@@ -79,7 +80,7 @@ export default function VendorShopPage() {
   if (loading)
     return (
       <Page size="narrow">
-        <p className="text-subtle">Loading…</p>
+        <PageLoader />
       </Page>
     );
 

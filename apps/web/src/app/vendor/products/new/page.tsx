@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button, Input } from '@crafthub/ui';
+import { Button, Input, Select, Textarea } from '@crafthub/ui';
 import { Page } from '@/components/page';
 import { SlugFromNameFields } from '@/components/slug-from-name-fields';
+import { SuggestCategoryPanel } from '@/components/suggest-category-panel';
 import {
   addProductMedia,
   createVendorProduct,
@@ -13,6 +15,12 @@ import {
   generateListingDraft,
 } from '@/lib/api';
 import { toSlug } from '@/lib/slug';
+
+function dollarsToCents(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -27,7 +35,7 @@ export default function NewProductPage() {
   const [slugManual, setSlugManual] = useState(false);
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [priceCents, setPriceCents] = useState('2500');
+  const [priceDollars, setPriceDollars] = useState('25');
   const [stockQty, setStockQty] = useState('10');
   const [sku, setSku] = useState('');
   const [imageUrls, setImageUrls] = useState('');
@@ -72,6 +80,10 @@ export default function NewProductPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (status === 'active' && !categoryId) {
+      setError('Active products require a category');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -84,7 +96,7 @@ export default function NewProductPage() {
         variants: [
           {
             sku: sku || null,
-            priceCents: Number(priceCents),
+            priceCents: dollarsToCents(priceDollars),
             currency: 'USD',
             stockQty: Number(stockQty),
             attributes: {},
@@ -107,22 +119,33 @@ export default function NewProductPage() {
   }
 
   return (
-    <Page size="narrow">
-      <h1 className="font-display text-3xl">New product</h1>
-      <p className="mt-2 text-sm text-muted">
-        Optional: paste rough notes and generate a draft. AI never auto-publishes.
-      </p>
+    <Page size="reading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/vendor/products" className="text-sm text-accent hover:underline">
+            ← Products
+          </Link>
+          <h1 className="mt-2 font-display text-3xl">New product</h1>
+          <p className="mt-1 text-sm text-muted">
+            Create a draft first, or publish when category and details are ready.
+          </p>
+        </div>
+      </div>
 
-      <div className="mt-6 rounded-md border border-border bg-accent-muted/30 p-4">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-accent">Listing copilot notes</span>
-          <textarea
-            className="min-h-24 rounded-sm border border-border-strong bg-elevated px-3 py-2 text-sm"
+      <section className="mt-8 rounded-md border border-border bg-elevated/40 p-5">
+        <h2 className="font-display text-lg">Listing copilot</h2>
+        <p className="mt-1 text-sm text-muted">
+          Paste rough notes and generate a draft. AI never auto-publishes.
+        </p>
+        <div className="mt-4">
+          <Textarea
+            label="Notes"
             placeholder="e.g. Hand-thrown speckled mug, holds 10oz, matte glaze, ships from Islamabad…"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            className="min-h-24"
           />
-        </label>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button
             type="button"
@@ -135,83 +158,117 @@ export default function NewProductPage() {
           </Button>
           {copilotNote ? <p className="text-sm text-muted">{copilotNote}</p> : null}
         </div>
-      </div>
+      </section>
 
-      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
-        <SlugFromNameFields
-          sourceLabel="Title"
-          sourceValue={title}
-          onSourceChange={setTitle}
-          slug={slug}
-          onSlugChange={setSlug}
-          slugManual={slugManual}
-          onSlugManualChange={setSlugManual}
-          sourceRequired
-          slugHint="Used in the product URL"
-        />
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold">Description</span>
-          <textarea
-            className="min-h-28 rounded-sm border border-border-strong bg-elevated px-3 py-2"
+      <form onSubmit={onSubmit} className="mt-8 space-y-8">
+        <section className="space-y-4">
+          <div>
+            <h2 className="font-display text-lg">Details</h2>
+            <p className="mt-1 text-sm text-muted">Title, URL, description, and craft.</p>
+          </div>
+          <SlugFromNameFields
+            sourceLabel="Title"
+            sourceValue={title}
+            onSourceChange={setTitle}
+            slug={slug}
+            onSlugChange={setSlug}
+            slugManual={slugManual}
+            onSlugManualChange={setSlugManual}
+            sourceRequired
+            slugHint="Used in the product URL"
+          />
+          <Textarea
+            label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            placeholder="What it’s made of, size, care, and what makes it special…"
           />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold">Category</span>
-          <select
-            className="min-h-11 rounded-sm border border-border-strong bg-elevated px-3"
+          <Select
+            label={status === 'active' ? 'Category (required)' : 'Category'}
+            hint="Active listings need a craft category."
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
+            required={status === 'active'}
           >
-            <option value="">None</option>
+            <option value="">{status === 'active' ? 'Select a craft…' : 'None (draft only)'}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
-          </select>
-        </label>
-        <Input
-          label="Price (cents)"
-          type="number"
-          required
-          value={priceCents}
-          onChange={(e) => setPriceCents(e.target.value)}
-        />
-        <Input
-          label="Stock"
-          type="number"
-          required
-          value={stockQty}
-          onChange={(e) => setStockQty(e.target.value)}
-        />
-        <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} />
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold">Image URLs</span>
-          <textarea
-            className="min-h-24 rounded-sm border border-border-strong bg-elevated px-3 py-2 text-sm"
-            placeholder={'One URL per line\nhttps://…\nhttps://…'}
+          </Select>
+          <SuggestCategoryPanel />
+        </section>
+
+        <section className="space-y-4 border-t border-border pt-8">
+          <div>
+            <h2 className="font-display text-lg">Pricing & stock</h2>
+            <p className="mt-1 text-sm text-muted">One default variant for now.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input
+              label="Price (USD)"
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              value={priceDollars}
+              onChange={(e) => setPriceDollars(e.target.value)}
+              hint="Stored as cents on the server"
+            />
+            <Input
+              label="Stock"
+              type="number"
+              min={0}
+              step="1"
+              required
+              value={stockQty}
+              onChange={(e) => setStockQty(e.target.value)}
+            />
+            <Input label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} hint="Optional" />
+          </div>
+        </section>
+
+        <section className="space-y-4 border-t border-border pt-8">
+          <div>
+            <h2 className="font-display text-lg">Images</h2>
+            <p className="mt-1 text-sm text-muted">Paste image URLs for now — edit more after create.</p>
+          </div>
+          <Textarea
+            label="Image URLs"
+            hint="One URL per line"
+            className="min-h-24"
+            placeholder={'https://…\nhttps://…'}
             value={imageUrls}
             onChange={(e) => setImageUrls(e.target.value)}
           />
-          <span className="text-xs text-subtle">You can add or remove more after create.</span>
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold">Status</span>
-          <select
-            className="min-h-11 rounded-sm border border-border-strong bg-elevated px-3"
+        </section>
+
+        <section className="space-y-4 border-t border-border pt-8">
+          <div>
+            <h2 className="font-display text-lg">Publish</h2>
+            <p className="mt-1 text-sm text-muted">Drafts stay private until you set Active.</p>
+          </div>
+          <Select
+            label="Status"
             value={status}
             onChange={(e) => setStatus(e.target.value as 'draft' | 'active')}
           >
-            <option value="draft">Draft</option>
-            <option value="active">Active (public)</option>
-          </select>
-        </label>
-        {error ? <p className="text-danger">{error}</p> : null}
-        <Button type="submit" loading={loading}>
-          Create product
-        </Button>
+            <option value="draft">Draft — not public</option>
+            <option value="active">Active — visible on CraftHub</option>
+          </Select>
+          {error ? <p className="text-danger">{error}</p> : null}
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" loading={loading}>
+              Create product
+            </Button>
+            <Link href="/vendor/products">
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </Link>
+          </div>
+        </section>
       </form>
     </Page>
   );

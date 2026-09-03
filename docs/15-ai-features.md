@@ -86,8 +86,10 @@ On `/vendor/products/new`:
 
 1. Vendor uploads photos and/or pastes rough notes  
 2. Clicks **Generate listing**  
-3. AI proposes: title, description, tags, category suggestion, material/care blurb  
+3. AI proposes: title, description, tags, **category suggestion from existing active categories only**, material/care blurb  
 4. Vendor edits everything before save (AI never auto-publishes)
+
+Missing crafts are **not** invented by AI — vendors use **Suggest a category** for admin review ([07 — Vendor](./07-vendor-dashboard.md), [08 — Admin](./08-admin-panel.md)).
 
 ### Why it’s better than a random chatbot
 

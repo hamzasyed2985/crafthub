@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchAdminVendors, patchAdminVendor, type VendorSummary } from '@/lib/api';
@@ -67,7 +68,7 @@ function AdminVendorsClient() {
   }
 
   return (
-    <Page size="default">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Vendors</h1>
       <p className="mt-1 text-muted">Approve makers so their shops appear publicly.</p>
 
@@ -167,8 +168,8 @@ export default function AdminVendorsPage() {
   return (
     <Suspense
       fallback={
-        <Page size="default">
-          <p className="text-subtle">Loading vendors…</p>
+        <Page size="wide">
+          <PageLoader label="Loading vendors…" />
         </Page>
       }
     >

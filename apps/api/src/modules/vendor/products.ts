@@ -84,8 +84,14 @@ vendorProductsRouter.post('/', async (req: VendorRequest, res, next) => {
     }
 
     if (input.categoryId) {
-      const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
+      const category = await prisma.category.findFirst({
+        where: { id: input.categoryId, status: 'active' },
+      });
       if (!category) throw new AppError(400, 'INVALID_CATEGORY', 'Category not found');
+    }
+
+    if (input.status === 'active' && !input.categoryId) {
+      throw new AppError(400, 'CATEGORY_REQUIRED', 'Active products require a category');
     }
 
     const product = await prisma.product.create({
@@ -147,6 +153,20 @@ vendorProductsRouter.patch('/:id', async (req: VendorRequest, res, next) => {
         where: { shopId_slug: { shopId: req.shopId!, slug: input.slug } },
       });
       if (clash) throw new AppError(409, 'SLUG_TAKEN', 'Slug already in use');
+    }
+
+    if (input.categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: input.categoryId, status: 'active' },
+      });
+      if (!category) throw new AppError(400, 'INVALID_CATEGORY', 'Category not found');
+    }
+
+    const nextStatus = input.status ?? existing.status;
+    const nextCategoryId =
+      input.categoryId === undefined ? existing.categoryId : input.categoryId;
+    if (nextStatus === 'active' && !nextCategoryId) {
+      throw new AppError(400, 'CATEGORY_REQUIRED', 'Active products require a category');
     }
 
     const product = await prisma.$transaction(async (tx) => {

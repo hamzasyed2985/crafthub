@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button, ProductCard } from '@crafthub/ui';
+import { HeroScrollHint } from '@/components/hero-scroll-hint';
 import { Page } from '@/components/page';
 import { getApiBaseUrl } from '@/lib/api-base-url';
 
@@ -25,39 +26,50 @@ type ShopRow = {
   logoUrl: string | null;
 };
 
-type CategoryRow = { id: string; name: string; slug: string };
+type CategoryRow = { id: string; name: string; slug: string; featured?: boolean };
 
 async function loadHome() {
   try {
-    const [productsRes, shopsRes, categoriesRes] = await Promise.all([
+    const [productsRes, shopsRes, featuredRes, allCatsRes] = await Promise.all([
       fetch(`${API_URL}/api/v1/products?limit=8&sort=newest`, { next: { revalidate: 30 } }),
       fetch(`${API_URL}/api/v1/shops?limit=6`, { next: { revalidate: 30 } }),
+      fetch(`${API_URL}/api/v1/categories?featured=1`, { next: { revalidate: 60 } }),
       fetch(`${API_URL}/api/v1/categories`, { next: { revalidate: 60 } }),
     ]);
     const productsJson = productsRes.ok
       ? ((await productsRes.json()) as { data: ProductRow[] })
       : { data: [] };
     const shopsJson = shopsRes.ok ? ((await shopsRes.json()) as { data: ShopRow[] }) : { data: [] };
-    const categoriesJson = categoriesRes.ok
-      ? ((await categoriesRes.json()) as { data: CategoryRow[] })
+    const featuredJson = featuredRes.ok
+      ? ((await featuredRes.json()) as { data: CategoryRow[] })
       : { data: [] };
+    const allCatsJson = allCatsRes.ok
+      ? ((await allCatsRes.json()) as { data: CategoryRow[] })
+      : { data: [] };
+    const featured = featuredJson.data ?? [];
+    const all = allCatsJson.data ?? [];
     return {
       products: productsJson.data ?? [],
       shops: shopsJson.data ?? [],
-      categories: categoriesJson.data ?? [],
+      categories: featured.length > 0 ? featured.slice(0, 8) : all.slice(0, 8),
+      hasMoreCrafts: all.length > (featured.length > 0 ? featured.length : 8),
     };
   } catch {
-    return { products: [], shops: [], categories: [] };
+    return { products: [], shops: [], categories: [], hasMoreCrafts: false };
   }
 }
 
 export default async function HomePage() {
-  const { products, shops, categories } = await loadHome();
+  const { products, shops, categories, hasMoreCrafts } = await loadHome();
 
   return (
     <>
-      <section className="relative grid min-h-[calc(100vh-64px)] place-items-center overflow-hidden px-6 pb-16 pt-8">
+      <section className="relative grid min-h-[calc(100vh-64px)] place-items-center overflow-hidden px-6 pb-24 pt-8">
         <div aria-hidden className="hero-atmosphere absolute inset-0 z-0" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-32 bg-gradient-to-t from-background via-background/80 to-transparent"
+        />
 
         <div className="relative z-[1] flex max-w-3xl flex-col items-center gap-5 text-center">
           <p className="m-0 font-display text-[clamp(2.75rem,8vw,4.5rem)] leading-[1.05] tracking-[-0.03em] text-foreground">
@@ -79,18 +91,24 @@ export default async function HomePage() {
             </Link>
           </div>
         </div>
+
+        <HeroScrollHint />
       </section>
+
+      <div id="home-content" className="scroll-mt-16" aria-hidden />
 
       {products.length > 0 ? (
         <section className="border-t border-border bg-elevated/40 py-14">
           <Page size="wide" y="none">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="font-display text-2xl">New in the hall</h2>
                 <p className="mt-1 text-sm text-muted">Fresh pieces from approved makers.</p>
               </div>
-              <Link href="/explore" className="text-sm text-accent hover:underline">
-                See all
+              <Link href="/explore">
+                <Button variant="secondary" size="sm">
+                  See all products →
+                </Button>
               </Link>
             </div>
             <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -118,13 +136,15 @@ export default async function HomePage() {
       {shops.length > 0 ? (
         <section className="border-t border-border py-14">
           <Page size="wide" y="none">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="font-display text-2xl">Makers to meet</h2>
                 <p className="mt-1 text-sm text-muted">Independent shops with their own craft stories.</p>
               </div>
-              <Link href="/shops" className="text-sm text-accent hover:underline">
-                All makers
+              <Link href="/shops">
+                <Button variant="secondary" size="sm">
+                  Browse all makers →
+                </Button>
               </Link>
             </div>
             <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -161,8 +181,19 @@ export default async function HomePage() {
       {categories.length > 0 ? (
         <section className="border-t border-border bg-elevated/40 py-14">
           <Page size="wide" y="none">
-            <h2 className="font-display text-2xl">Shop by craft</h2>
-            <p className="mt-1 text-sm text-muted">Jump into a material or making tradition.</p>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display text-2xl">Shop by craft</h2>
+                <p className="mt-1 text-sm text-muted">A curated set of making traditions.</p>
+              </div>
+              {hasMoreCrafts ? (
+                <Link href="/explore">
+                  <Button variant="secondary" size="sm">
+                    Browse all crafts →
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
             <ul className="mt-8 flex flex-wrap gap-3">
               {categories.map((c) => (
                 <li key={c.id}>

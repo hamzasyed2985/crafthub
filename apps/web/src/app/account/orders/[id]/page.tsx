@@ -4,9 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Button, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { confirmOrderPayment, fetchOrder, readAccessToken, type OrderDto } from '@/lib/api';
-import { formatBuyerOrderStatus, formatBuyerVendorSliceStatus } from '@/lib/format-status';
+import {
+  formatBuyerOrderStatus,
+  formatBuyerVendorSliceStatus,
+  formatOrderNumber,
+} from '@/lib/format-status';
 
 export default function AccountOrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -50,7 +55,7 @@ export default function AccountOrderDetailPage() {
   if (!order)
     return (
       <Page size="reading">
-        <p className="text-subtle">Loading…</p>
+        <PageLoader />
       </Page>
     );
 
@@ -59,9 +64,17 @@ export default function AccountOrderDetailPage() {
       <Link href="/account/orders" className="text-sm text-accent">
         ← All orders
       </Link>
-      <h1 className="mt-4 font-display text-3xl">Order detail</h1>
+      <h1 className="mt-4 font-display text-3xl">{formatOrderNumber(order.id)}</h1>
       <p className="mt-2 text-muted">
-        Status <strong>{formatBuyerOrderStatus(order.status)}</strong> · <Price cents={order.totalCents} />
+        <strong>{formatBuyerOrderStatus(order.status)}</strong> · <Price cents={order.totalCents} />
+      </p>
+      <p className="mt-1 text-sm text-subtle">
+        Placed{' '}
+        {new Date(order.createdAt).toLocaleDateString(undefined, {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}
       </p>
       <p className="mt-2 text-sm text-subtle">
         Ship to {order.shipping.name}, {order.shipping.line1}, {order.shipping.city}{' '}

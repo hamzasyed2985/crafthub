@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Price } from '@crafthub/ui';
+import { ListRowSkeleton } from '@/components/list-row-skeleton';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchAdminOrders, type AdminOrderRow } from '@/lib/api';
@@ -28,7 +29,7 @@ export default function AdminOrdersPage() {
   }, [status, page]);
 
   return (
-    <Page size="default">
+    <Page size="wide">
       <h1 className="font-display text-3xl">Orders</h1>
       <p className="mt-1 text-muted">All marketplace orders</p>
 
@@ -51,7 +52,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {error ? <p className="mt-4 text-danger">{error}</p> : null}
-      {!orders ? <p className="mt-8 text-subtle">Loading…</p> : null}
+      {!orders ? <ListRowSkeleton rows={8} columns={4} /> : null}
 
       {orders ? (
         <>

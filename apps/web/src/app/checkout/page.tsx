@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Price } from '@crafthub/ui';
+import { PageLoader } from '@/components/page-loader';
 import { Page } from '@/components/page';
 import { useCart } from '@/components/cart-provider';
 import { CitySelect, CountrySelect } from '@/components/country-city-fields';
@@ -86,7 +87,7 @@ export default function CheckoutPage() {
   if (authed === null || (loading && !cart)) {
     return (
       <Page size="default">
-        <p className="text-subtle">Loading checkout…</p>
+        <PageLoader label="Loading checkout…" />
       </Page>
     );
   }

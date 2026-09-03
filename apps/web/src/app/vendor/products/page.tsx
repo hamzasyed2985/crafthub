@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { ListRowSkeleton } from '@/components/list-row-skeleton';
 import { Page } from '@/components/page';
 import { PaginationControls } from '@/components/pagination-controls';
 import { fetchVendorProducts, type ProductDto } from '@/lib/api';
@@ -40,14 +41,14 @@ export default function VendorProductsPage() {
 
   if (error) {
     return (
-      <Page size="reading">
+      <Page size="wide">
         <p className="text-danger">{error}</p>
       </Page>
     );
   }
 
   return (
-    <Page size="reading">
+    <Page size="wide">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl">Products</h1>
@@ -75,7 +76,7 @@ export default function VendorProductsPage() {
       ) : null}
 
       {!products ? (
-        <p className="mt-8 text-subtle">Loading products…</p>
+        <ListRowSkeleton rows={6} columns={3} />
       ) : products.length === 0 ? (
         <p className="mt-8 text-subtle">
           {q ? (

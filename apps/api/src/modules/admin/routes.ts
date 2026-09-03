@@ -110,7 +110,12 @@ adminRouter.patch('/vendors/:id', async (req: AuthedRequest, res, next) => {
           action: `vendor.${input.status}`,
           entity: 'vendor_profile',
           entityId: existing.id,
-          meta: { reason: input.reason ?? null, from: existing.status },
+          meta: {
+            reason: input.reason ?? null,
+            from: existing.status,
+            displayName: existing.displayName,
+            slug: existing.slug,
+          },
         },
       });
 
@@ -157,7 +162,7 @@ adminRouter.post('/products/:id/unpublish', async (req: AuthedRequest, res, next
           action: 'product.unpublish',
           entity: 'product',
           entityId: product.id,
-          meta: {},
+          meta: { title: product.title, slug: product.slug },
         },
       });
       return p;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button, Price } from '@crafthub/ui';
+import { LoadingMessage } from '@/components/loading-message';
 import { useCart } from '@/components/cart-provider';
 import { IconClose } from '@/components/icons';
 
@@ -69,7 +70,7 @@ export function CartDrawer() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {loading && !cart ? <p className="text-subtle">Loading…</p> : null}
+          {loading && !cart ? <LoadingMessage label="Loading cart…" /> : null}
           {cart?.warnings?.map((w) => (
             <p key={w.message} className="mb-3 rounded-md bg-accent-muted px-3 py-2 text-sm">
               {w.message}
